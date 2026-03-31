@@ -1,0 +1,12 @@
+node_modules/
+.env
+*.log
+*.DS_Store
+squads/*/output/
+_opensquad/_memory/company.md
+_opensquad/_memory/preferences.md
+_opensquad/_browser_profile/
+_opensquad/logs/
+webapp/__pycache__/
+webapp/**/__pycache__/
+*.pyc

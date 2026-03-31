@@ -1,0 +1,3 @@
+[submodule "opensquad"]
+	path = opensquad
+	url = https://github.com/Mariannioliveira/opensquad.git

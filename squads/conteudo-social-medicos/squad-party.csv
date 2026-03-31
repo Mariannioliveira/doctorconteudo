@@ -1,0 +1,6 @@
+id,name,icon,role,path,execution,skills
+pesquisador,Dr. Scout,🔎,Rastreia notícias de medicina e tecnologia médica e sugere os temas mais relevantes para o público médico,./agents/pesquisador.agent.md,subagent,"web_search,web_fetch"
+estrategista,Ana Estratégia,🧭,Define o ângulo estratégico e cria o brief com 3 opções de hook para o tema escolhido,./agents/estrategista.agent.md,inline,web_search
+redator,Carlos Cópia,✍️,Escreve o carrossel (8-10 slides) + script Reel (15-30s) + post LinkedIn em uma única passagem,./agents/redator.agent.md,inline,
+revisor,Vera Veredito,🔍,Avalia o conteúdo contra os critérios de qualidade e emite veredicto APROVAR/REJEITAR com feedback acionável,./agents/revisor.agent.md,inline,
+publicador,Paula Post,📲,Publica o carrossel aprovado no Instagram via Graph API usando a skill instagram-publisher,./agents/publicador.agent.md,inline,instagram-publisher
