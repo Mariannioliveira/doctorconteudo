@@ -2,6 +2,8 @@ import { useSquadSocket } from "@/hooks/useSquadSocket";
 import { SquadSelector } from "@/components/SquadSelector";
 import { OfficeScene } from "@/office/OfficeScene";
 import { StatusBar } from "@/components/StatusBar";
+import { RunPanel } from "@/components/RunPanel";
+import { CheckpointPanel } from "@/components/CheckpointPanel";
 
 export function App() {
   useSquadSocket();
@@ -37,10 +39,14 @@ export function App() {
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <SquadSelector />
         <OfficeScene />
+        <RunPanel />
       </div>
 
       {/* Footer */}
       <StatusBar />
+
+      {/* Checkpoint overlay — rendered above everything */}
+      <CheckpointPanel />
     </div>
   );
 }
