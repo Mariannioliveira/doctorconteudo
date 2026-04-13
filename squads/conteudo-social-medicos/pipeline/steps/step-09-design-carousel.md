@@ -16,7 +16,7 @@ O Designer deve:
 1. Ler a copy aprovada em `output/content-draft.md`
 2. Definir o design system completo antes de criar qualquer HTML
 3. Criar um arquivo HTML por slide em `output/design/`
-4. Verificar visualmente o slide 1 antes de renderizar os demais
+4. Renderizar o card via Playwright e exibir o screenshot na conversa para verificação visual — OBRIGATÓRIO antes de entregar
 5. Entregar todos os slides renderizados
 
 ## Inputs

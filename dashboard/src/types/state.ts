@@ -47,13 +47,20 @@ export interface SquadState {
   updatedAt: string;
 }
 
+// Agent metadata (from squad.yaml)
+export interface AgentMeta {
+  id: string;
+  name: string;
+  icon: string;
+}
+
 // Squad metadata from squad.yaml
 export interface SquadInfo {
   code: string;
   name: string;
   description: string;
   icon: string;
-  agents: string[]; // agent file paths
+  agents: AgentMeta[];
 }
 
 // WebSocket messages

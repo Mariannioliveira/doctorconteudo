@@ -88,13 +88,25 @@ def artifact_exists(run_id: str, rel_path: str) -> bool:
 
 
 def list_design_files(run_id: str) -> list[str]:
+    """Returns URL paths to design images (jpg/png), served via /squad-output/."""
     design_dir = get_run_dir(run_id) / "design"
     if not design_dir.exists():
         return []
+    squad_name = SQUAD_ROOT.name
     return sorted([
-        f.name for f in design_dir.iterdir()
+        f"/squad-output/{squad_name}/output/{run_id}/design/{f.name}"
+        for f in design_dir.iterdir()
         if f.suffix.lower() in (".jpg", ".jpeg", ".png")
     ])
+
+
+def get_card_html_url(run_id: str) -> str | None:
+    """Returns the URL to card.html if it exists, for iframe display."""
+    html_path = get_run_dir(run_id) / "design" / "card.html"
+    if html_path.exists():
+        squad_name = SQUAD_ROOT.name
+        return f"/squad-output/{squad_name}/output/{run_id}/design/card.html"
+    return None
 
 
 def save_checkpoint_decision(run_id: str, step_id: str, decision: dict):

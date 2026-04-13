@@ -4,10 +4,11 @@ Runs steps in sequence, pausing at checkpoints via asyncio.Event.
 Emits SSE events via RunContext.sse_queue.
 """
 import asyncio
+import yaml
 from datetime import datetime, timezone
 
 from .models import RunContext, StepInfo
-from .config import SQUAD_ROOT
+from .config import SQUAD_ROOT, PROJECT_ROOT
 from .file_manager import (
     load_pipeline_yaml, load_squad_yaml,
     save_run_state, save_checkpoint_decision,
@@ -92,8 +93,18 @@ async def run_pipeline(run_id: str, run_ctx: RunContext):
     last_decision: dict | None = None
     steps = pipeline.get("steps", [])
 
+    stop_signal = PROJECT_ROOT / "squads" / squad_yaml.get("code", "conteudo-social-medicos") / ".stop_signal"
+
     try:
         for step in steps:
+            # Check stop signal before each step
+            if stop_signal.exists():
+                state["status"] = "error"
+                state["error"] = "Pipeline parado pelo usuário"
+                save_run_state(state)
+                await run_ctx.emit("run_error", {"error": "Pipeline parado pelo usuário"})
+                return
+
             step_id = step["id"]
             step_type = step.get("type", "agent")
             step_name = step.get("name", step_id)
@@ -127,7 +138,15 @@ async def run_pipeline(run_id: str, run_ctx: RunContext):
                 # Save decision to file
                 save_checkpoint_decision(run_id, step_id, decision)
 
-                # Handle terminal actions
+                # step-02: save selected story so Carlos Cópia can read it
+                if step_id == "step-02" and action == "select":
+                    story_value = decision.get("value")
+                    if story_value and isinstance(story_value, dict):
+                        run_dir = get_run_dir(run_id)
+                        story_yaml = yaml.dump(story_value, allow_unicode=True, default_flow_style=False)
+                        (run_dir / "selected-story.yaml").write_text(story_yaml, encoding="utf-8")
+
+                # Terminal: save draft
                 if action == "save_draft":
                     _update_step_status(state, step_id, "done")
                     state["status"] = "saved_draft"
@@ -139,7 +158,8 @@ async def run_pipeline(run_id: str, run_ctx: RunContext):
                     })
                     return
 
-                if action == "save" and step_id == "step-10":
+                # Terminal: save design without publishing (step-07)
+                if action == "save" and step_id == "step-07":
                     _update_step_status(state, step_id, "done")
                     state["status"] = "completed"
                     save_run_state(state)
@@ -150,26 +170,8 @@ async def run_pipeline(run_id: str, run_ctx: RunContext):
                     })
                     return
 
-                # Handle "retry" flows — adjust_copy goes back to step-05
-                if action == "adjust_copy" and step_id == "step-08":
-                    # Re-run step-05 with feedback
-                    _update_step_status(state, step_id, "done")
-                    state["status"] = "running"
-                    save_run_state(state)
-                    await run_ctx.emit("checkpoint_resolved", {"step_id": step_id, "action": action})
-                    # Insert a synthetic step-05 re-execution
-                    step_05 = next((s for s in steps if s["id"] == "step-05"), None)
-                    if step_05:
-                        await _run_agent_step(step_05, run_id, state, run_ctx, last_decision)
-                    # Then continue to re-run step-07
-                    step_07 = next((s for s in steps if s["id"] == "step-07"), None)
-                    if step_07:
-                        await _run_agent_step(step_07, run_id, state, run_ctx, last_decision)
-                    # And re-present step-08 checkpoint
-                    continue
-
-                if action == "change_angle" and step_id == "step-06":
-                    # Go back to strategist
+                # step-05: user requests content changes → re-run redator + revisor
+                if action == "request_changes" and step_id == "step-05":
                     _update_step_status(state, step_id, "done")
                     state["status"] = "running"
                     save_run_state(state)
@@ -177,28 +179,20 @@ async def run_pipeline(run_id: str, run_ctx: RunContext):
                     step_03 = next((s for s in steps if s["id"] == "step-03"), None)
                     if step_03:
                         await _run_agent_step(step_03, run_id, state, run_ctx, last_decision)
+                    step_04 = next((s for s in steps if s["id"] == "step-04"), None)
+                    if step_04:
+                        await _run_agent_step(step_04, run_id, state, run_ctx, last_decision)
                     continue
 
-                if action == "request_changes" and step_id == "step-06":
-                    # Re-run writer with feedback
+                # step-07: user wants design adjusted → re-run designer
+                if action == "adjust_design" and step_id == "step-07":
                     _update_step_status(state, step_id, "done")
                     state["status"] = "running"
                     save_run_state(state)
                     await run_ctx.emit("checkpoint_resolved", {"step_id": step_id, "action": action})
-                    step_05 = next((s for s in steps if s["id"] == "step-05"), None)
-                    if step_05:
-                        await _run_agent_step(step_05, run_id, state, run_ctx, last_decision)
-                    continue
-
-                if action == "adjust_design" and step_id == "step-10":
-                    # Re-run designer
-                    _update_step_status(state, step_id, "done")
-                    state["status"] = "running"
-                    save_run_state(state)
-                    await run_ctx.emit("checkpoint_resolved", {"step_id": step_id, "action": action})
-                    step_09 = next((s for s in steps if s["id"] == "step-09"), None)
-                    if step_09:
-                        await _run_agent_step(step_09, run_id, state, run_ctx, last_decision)
+                    step_06 = next((s for s in steps if s["id"] == "step-06"), None)
+                    if step_06:
+                        await _run_agent_step(step_06, run_id, state, run_ctx, last_decision)
                     continue
 
                 _update_step_status(state, step_id, "done")
@@ -263,8 +257,8 @@ async def _run_agent_step(
         "agent_icon": agent_info["icon"],
     })
 
-    async def on_token(token: str):
-        await run_ctx.emit("agent_token", {"token": token})
+    def on_token(token: str):
+        asyncio.create_task(run_ctx.emit("agent_token", {"agent_id": agent_id, "token": token}))
 
     output = await agent_executor.execute_step(
         step=step,
@@ -280,4 +274,6 @@ async def _run_agent_step(
         "step_id": step_id,
         "step_name": step_name,
         "agent_id": agent_id,
+        "agent_name": agent_info["name"],
+        "agent_icon": agent_info["icon"],
     })

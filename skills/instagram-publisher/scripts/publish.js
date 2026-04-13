@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Instagram Carousel Publisher
-// Usage: node --env-file=.env publish.js --images "slide1.jpg,slide2.jpg" --caption "..." [--dry-run]
+// Instagram Publisher — suporta imagem única e carrossel
+// Usage: node --env-file=.env publish.js --images "card.jpg" --caption "..." [--dry-run]
+//        node --env-file=.env publish.js --images "s1.jpg,s2.jpg" --caption "..." [--dry-run]
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -45,17 +46,6 @@ export async function uploadToCatbox(imagePath) {
 
 const IG_BASE = 'https://graph.facebook.com/v21.0';
 
-export async function createChildContainer(userId, imageUrl, accessToken) {
-  const params = new URLSearchParams({
-    image_url: imageUrl,
-    is_carousel_item: 'true',
-    access_token: accessToken,
-  });
-  const res = await fetch(`${IG_BASE}/${userId}/media?${params}`, { method: 'POST' });
-  if (!res.ok) throw new Error(`createChildContainer failed [${res.status}]: ${await res.text()}`);
-  return (await res.json()).id;
-}
-
 export async function getContainerStatus(containerId, accessToken) {
   const params = new URLSearchParams({ fields: 'status_code', access_token: accessToken });
   const res = await fetch(`${IG_BASE}/${containerId}?${params}`);
@@ -74,6 +64,47 @@ export async function pollUntilFinished(containerId, accessToken, timeoutMs = 60
   throw new Error(`Container ${containerId} timed out after ${timeoutMs}ms`);
 }
 
+export async function publishMedia(userId, containerId, accessToken) {
+  const params = new URLSearchParams({ creation_id: containerId, access_token: accessToken });
+  const res = await fetch(`${IG_BASE}/${userId}/media_publish?${params}`, { method: 'POST' });
+  if (!res.ok) throw new Error(`publishMedia failed [${res.status}]: ${await res.text()}`);
+  return (await res.json()).id;
+}
+
+export async function getPermalink(mediaId, accessToken) {
+  const params = new URLSearchParams({ fields: 'permalink', access_token: accessToken });
+  const res = await fetch(`${IG_BASE}/${mediaId}?${params}`);
+  if (!res.ok) return null;
+  const json = await res.json();
+  return json.permalink ?? null;
+}
+
+// ── Single image ──────────────────────────────────────────────
+
+export async function createSingleImageContainer(userId, imageUrl, caption, accessToken) {
+  const params = new URLSearchParams({
+    image_url: imageUrl,
+    caption,
+    access_token: accessToken,
+  });
+  const res = await fetch(`${IG_BASE}/${userId}/media?${params}`, { method: 'POST' });
+  if (!res.ok) throw new Error(`createSingleImageContainer failed [${res.status}]: ${await res.text()}`);
+  return (await res.json()).id;
+}
+
+// ── Carousel ──────────────────────────────────────────────────
+
+export async function createChildContainer(userId, imageUrl, accessToken) {
+  const params = new URLSearchParams({
+    image_url: imageUrl,
+    is_carousel_item: 'true',
+    access_token: accessToken,
+  });
+  const res = await fetch(`${IG_BASE}/${userId}/media?${params}`, { method: 'POST' });
+  if (!res.ok) throw new Error(`createChildContainer failed [${res.status}]: ${await res.text()}`);
+  return (await res.json()).id;
+}
+
 export async function createCarouselContainer(userId, childIds, caption, accessToken) {
   const params = new URLSearchParams({
     media_type: 'CAROUSEL',
@@ -86,75 +117,69 @@ export async function createCarouselContainer(userId, childIds, caption, accessT
   return (await res.json()).id;
 }
 
-export async function publishMedia(userId, containerId, accessToken) {
-  const params = new URLSearchParams({ creation_id: containerId, access_token: accessToken });
-  const res = await fetch(`${IG_BASE}/${userId}/media_publish?${params}`, { method: 'POST' });
-  if (!res.ok) throw new Error(`publishMedia failed [${res.status}]: ${await res.text()}`);
-  return (await res.json()).id;
-}
-
-export async function getPermalink(mediaId, accessToken) {
-  const params = new URLSearchParams({ fields: 'permalink', access_token: accessToken });
-  const res = await fetch(`${IG_BASE}/${mediaId}?${params}`);
-  if (!res.ok) return null; // non-fatal — just skip the URL display
-  const json = await res.json();
-  return json.permalink ?? null;
-}
-
 // ── Main ──────────────────────────────────────────────────────
 
 async function main() {
   const { images, caption, dryRun } = parseArgs(process.argv);
 
-  if (!images.length) throw new Error('--images is required (e.g. --images "slide1.jpg,slide2.jpg")');
+  if (!images.length) throw new Error('--images is required (e.g. --images "card.jpg")');
   if (!caption) throw new Error('--caption is required');
-  if (images.length < 2 || images.length > 10) {
-    throw new Error(`Instagram carousels require 2–10 images (got ${images.length})`);
-  }
+  if (images.length > 10) throw new Error(`Instagram suporta até 10 imagens (recebeu ${images.length})`);
   if (caption.length > 2200) {
-    throw new Error(`Caption exceeds Instagram's 2200-character limit (got ${caption.length})`);
+    throw new Error(`Legenda excede o limite de 2200 caracteres do Instagram (${caption.length})`);
   }
 
   const { INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_USER_ID } = process.env;
-  if (!INSTAGRAM_ACCESS_TOKEN) throw new Error('INSTAGRAM_ACCESS_TOKEN is not set in environment');
-  if (!INSTAGRAM_USER_ID) throw new Error('INSTAGRAM_USER_ID is not set in environment');
+  if (!INSTAGRAM_ACCESS_TOKEN) throw new Error('INSTAGRAM_ACCESS_TOKEN não configurado no .env');
+  if (!INSTAGRAM_USER_ID) throw new Error('INSTAGRAM_USER_ID não configurado no .env');
 
-  console.log(`📸 Uploading ${images.length} image(s) to catbox.moe...`);
+  const isCarousel = images.length > 1;
+
+  console.log(`📸 Enviando ${images.length} imagem(ns) para catbox.moe...`);
   const imageUrls = await Promise.all(images.map(p => uploadToCatbox(p)));
   imageUrls.forEach((url, i) => console.log(`   [${i + 1}] ${url}`));
 
-  console.log('\n📦 Creating Instagram media containers...');
-  const childIds = await Promise.all(
-    imageUrls.map(url => createChildContainer(INSTAGRAM_USER_ID, url, INSTAGRAM_ACCESS_TOKEN))
-  );
-  console.log(`   Container IDs: ${childIds.join(', ')}`);
+  let containerId;
 
-  console.log('\n⏳ Waiting for containers to finish processing...');
-  await Promise.all(childIds.map(id => pollUntilFinished(id, INSTAGRAM_ACCESS_TOKEN)));
-  console.log('   All containers ready.');
+  if (isCarousel) {
+    if (images.length < 2) throw new Error('Carrossel requer mínimo 2 imagens');
 
-  console.log('\n🎠 Creating carousel container...');
-  const carouselId = await createCarouselContainer(
-    INSTAGRAM_USER_ID, childIds, caption, INSTAGRAM_ACCESS_TOKEN
-  );
-  await pollUntilFinished(carouselId, INSTAGRAM_ACCESS_TOKEN);
-  console.log(`   Carousel container ID: ${carouselId}`);
+    console.log('\n📦 Criando containers filhos do carrossel...');
+    const childIds = await Promise.all(
+      imageUrls.map(url => createChildContainer(INSTAGRAM_USER_ID, url, INSTAGRAM_ACCESS_TOKEN))
+    );
+    console.log(`   IDs: ${childIds.join(', ')}`);
+
+    console.log('\n⏳ Aguardando processamento dos containers...');
+    await Promise.all(childIds.map(id => pollUntilFinished(id, INSTAGRAM_ACCESS_TOKEN)));
+
+    console.log('\n🎠 Criando container do carrossel...');
+    containerId = await createCarouselContainer(INSTAGRAM_USER_ID, childIds, caption, INSTAGRAM_ACCESS_TOKEN);
+    await pollUntilFinished(containerId, INSTAGRAM_ACCESS_TOKEN);
+    console.log(`   Container do carrossel: ${containerId}`);
+  } else {
+    console.log('\n📦 Criando container de imagem única...');
+    containerId = await createSingleImageContainer(INSTAGRAM_USER_ID, imageUrls[0], caption, INSTAGRAM_ACCESS_TOKEN);
+
+    console.log('\n⏳ Aguardando processamento...');
+    await pollUntilFinished(containerId, INSTAGRAM_ACCESS_TOKEN);
+    console.log(`   Container pronto: ${containerId}`);
+  }
 
   if (dryRun) {
-    console.log('\n✅ DRY RUN complete — skipping final publish call.');
-    console.log(`   Carousel container ready: ${carouselId}`);
+    console.log('\n✅ DRY RUN completo — publicação não realizada.');
+    console.log(`   Container pronto: ${containerId}`);
     return;
   }
 
-  console.log('\n🚀 Publishing to Instagram...');
-  const postId = await publishMedia(INSTAGRAM_USER_ID, carouselId, INSTAGRAM_ACCESS_TOKEN);
+  console.log('\n🚀 Publicando no Instagram...');
+  const postId = await publishMedia(INSTAGRAM_USER_ID, containerId, INSTAGRAM_ACCESS_TOKEN);
   const permalink = await getPermalink(postId, INSTAGRAM_ACCESS_TOKEN);
-  console.log(`\n✅ Published successfully!`);
+  console.log(`\n✅ Publicado com sucesso!`);
   console.log(`   Post ID: ${postId}`);
   if (permalink) console.log(`   URL: ${permalink}`);
 }
 
-// Run only when executed directly (not when imported for tests)
 const isMain = process.argv[1] === fileURLToPath(import.meta.url);
 if (isMain) {
   main().catch(err => {

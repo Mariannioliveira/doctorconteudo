@@ -6,6 +6,7 @@ import type { Graphics as PixiGraphics, TextStyleOptions, Texture } from "pixi.j
 import { COLORS, CELL_W, CELL_H, TILE, CHARACTER_VARIANTS } from "./palette";
 import { drawDeskArea, drawWorkstationBack, drawWorkstationFront, drawScreenGlow, drawDeskAccessories } from "./drawDesk";
 import { getCharacterTextures } from "./textures";
+import { useSquadStore } from "@/store/useSquadStore";
 
 extend({ Container, Graphics, Text, Sprite });
 
@@ -20,6 +21,7 @@ interface AgentDeskProps {
 }
 
 export function AgentDesk({ agent, agentIndex }: AgentDeskProps) {
+  const selectAgent = useSquadStore((s) => s.selectAgent);
   const x = GRID_OFFSET_X + (agent.desk.col - 1) * CELL_W;
   const y = GRID_OFFSET_Y + (agent.desk.row - 1) * CELL_H;
 
@@ -117,7 +119,13 @@ export function AgentDesk({ agent, agentIndex }: AgentDeskProps) {
   );
 
   return (
-    <pixiContainer x={x} y={y}>
+    <pixiContainer
+      x={x}
+      y={y}
+      eventMode="static"
+      cursor="pointer"
+      onClick={() => selectAgent(agent.id)}
+    >
       {/* Layer 1: chair + monitor (behind character) */}
       <pixiGraphics draw={drawStationBack} />
 

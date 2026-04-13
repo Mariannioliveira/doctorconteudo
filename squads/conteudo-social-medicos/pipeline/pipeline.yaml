@@ -1,13 +1,11 @@
 name: "Pipeline — Conteúdo Social Médicos"
-version: "2.0.0"
-created: "2026-03-23"
-updated: "2026-03-23"
+version: "3.0.0"
+created: "2026-04-10"
 squad: "conteudo-social-medicos"
 
 description: >
-  Pipeline econômico para produzir carrosseis de Instagram para médicos.
-  Do rastreamento de notícias médicas até o design e publicação no Instagram.
-  11 etapas com 5 checkpoints de controle do usuário.
+  Pipeline de 9 etapas: pesquisa → copy → revisão → aprovação → design → publicação.
+  4 checkpoints de controle do usuário.
 
 mode: "economico"
 
@@ -31,78 +29,55 @@ steps:
     depends_on: step-01
 
   - id: step-03
-    name: "Criação do Brief"
-    type: agent
-    agent: estrategista
-    file: steps/step-03-create-brief.md
-    depends_on: step-02
-
-  - id: step-04
-    name: "Aprovação do Brief"
-    type: checkpoint
-    file: steps/step-04-approve-brief.md
-    depends_on: step-03
-
-  - id: step-05
     name: "Criação do Conteúdo"
     type: agent
     agent: redator
-    file: steps/step-05-create-content.md
-    format: instagram-feed
-    depends_on: step-04
+    file: steps/step-03-create-content.md
+    depends_on: step-02
 
-  - id: step-06
-    name: "Revisão do Rascunho"
-    type: checkpoint
-    file: steps/step-06-review-draft.md
-    depends_on: step-05
-
-  - id: step-07
+  - id: step-04
     name: "Revisão de Qualidade"
     type: agent
     agent: revisor
-    file: steps/step-07-quality-check.md
+    file: steps/step-04-quality-check.md
+    depends_on: step-03
+
+  - id: step-05
+    name: "Aprovação do Conteúdo"
+    type: checkpoint
+    file: steps/step-05-approve-content.md
+    depends_on: step-04
+
+  - id: step-06
+    name: "Design do Card"
+    type: agent
+    agent: designer
+    file: steps/step-06-design-card.md
+    depends_on: step-05
+
+  - id: step-07
+    name: "Aprovação para Publicação"
+    type: checkpoint
+    file: steps/step-07-approve-publish.md
     depends_on: step-06
 
   - id: step-08
-    name: "Aprovação para Design"
-    type: checkpoint
-    file: steps/step-08-approve-design.md
-    depends_on: step-07
-
-  - id: step-09
-    name: "Design do Carrossel"
-    type: agent
-    agent: designer
-    file: steps/step-09-design-carousel.md
-    depends_on: step-08
-
-  - id: step-10
-    name: "Aprovação para Publicação"
-    type: checkpoint
-    file: steps/step-10-approve-publish.md
-    depends_on: step-09
-
-  - id: step-11
     name: "Publicação no Instagram"
     type: agent
     agent: publicador
-    file: steps/step-11-publish.md
-    depends_on: step-10
+    file: steps/step-08-publish.md
+    depends_on: step-07
 
 checkpoints:
   - step-00  # Período de pesquisa
   - step-02  # Escolha do tema
-  - step-04  # Aprovação do brief
-  - step-06  # Revisão do rascunho
-  - step-08  # Aprovação para design
-  - step-10  # Aprovação para publicação
+  - step-05  # Aprovação do conteúdo
+  - step-07  # Aprovação para publicação
 
 output:
   artifacts:
     - output/ranked-stories.yaml
-    - output/editorial-brief.md
     - output/content-draft.md
     - output/quality-review.md
-    - output/design/
+    - output/design/card.jpg
     - output/publish-report.md

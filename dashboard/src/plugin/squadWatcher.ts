@@ -5,17 +5,17 @@ import type { Duplex } from "node:stream";
 import fs from "node:fs";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
-import type { SquadInfo, SquadState, WsMessage } from "../types/state";
+import type { SquadInfo, SquadState, AgentMeta, WsMessage } from "../types/state";
 
 function resolveSquadsDir(): string {
   const candidates = [
-    path.resolve(process.cwd(), "../squads"),  // started from dashboard/
-    path.resolve(process.cwd(), "squads"),     // started from project root
+    path.resolve(process.cwd(), "../squads"),
+    path.resolve(process.cwd(), "squads"),
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;
   }
-  return path.resolve(process.cwd(), "../squads"); // default (will be created on demand)
+  return path.resolve(process.cwd(), "../squads");
 }
 
 function discoverSquads(squadsDir: string): SquadInfo[] {
@@ -32,15 +32,25 @@ function discoverSquads(squadsDir: string): SquadInfo[] {
     if (fs.existsSync(yamlPath)) {
       try {
         const raw = fs.readFileSync(yamlPath, "utf-8");
-        const parsed = parseYaml(raw);
-        const s = parsed?.squad;
-        if (s) {
+        // squad.yaml has keys at top level (code, name, icon, agents…)
+        const parsed = parseYaml(raw) as Record<string, unknown> | null;
+        if (parsed && typeof parsed === "object") {
+          // Extract agents — each agent is an object {id, name, icon, path}
+          const rawAgents = Array.isArray(parsed.agents) ? parsed.agents : [];
+          const agents: AgentMeta[] = rawAgents
+            .filter((a): a is Record<string, unknown> => typeof a === "object" && a !== null)
+            .map((a) => ({
+              id: typeof a.id === "string" ? a.id : String(a.id ?? ""),
+              name: typeof a.name === "string" ? a.name : typeof a.id === "string" ? a.id : "",
+              icon: typeof a.icon === "string" ? a.icon : "🤖",
+            }));
+
           squads.push({
-            code: typeof s.code === "string" ? s.code : entry.name,
-            name: typeof s.name === "string" ? s.name : entry.name,
-            description: typeof s.description === "string" ? s.description : "",
-            icon: typeof s.icon === "string" ? s.icon : "\u{1F4CB}",
-            agents: Array.isArray(s.agents) ? (s.agents as unknown[]).filter((a): a is string => typeof a === "string") : [],
+            code: typeof parsed.code === "string" ? parsed.code : entry.name,
+            name: typeof parsed.name === "string" ? parsed.name : entry.name,
+            description: typeof parsed.description === "string" ? parsed.description : "",
+            icon: typeof parsed.icon === "string" ? parsed.icon : "📋",
+            agents,
           });
           continue;
         }
@@ -49,12 +59,11 @@ function discoverSquads(squadsDir: string): SquadInfo[] {
       }
     }
 
-    // No squad.yaml or invalid YAML — use directory name as fallback
     squads.push({
       code: entry.name,
       name: entry.name,
       description: "",
-      icon: "\u{1F4CB}",
+      icon: "📋",
       agents: [],
     });
   }
@@ -81,7 +90,6 @@ function readActiveStates(squadsDir: string): Record<string, SquadState> {
     if (!entry.isDirectory()) continue;
     const statePath = path.join(squadsDir, entry.name, "state.json");
     if (!fs.existsSync(statePath)) continue;
-
     try {
       const raw = fs.readFileSync(statePath, "utf-8");
       const parsed = JSON.parse(raw);
@@ -89,10 +97,9 @@ function readActiveStates(squadsDir: string): Record<string, SquadState> {
         states[entry.name] = parsed;
       }
     } catch {
-      // Skip invalid JSON
+      // skip
     }
   }
-
   return states;
 }
 
@@ -120,7 +127,6 @@ export function squadWatcherPlugin(): Plugin {
       const squadsDir = resolveSquadsDir();
       server.config.logger.info(`[squad-watcher] squads dir: ${squadsDir}`);
 
-      // Create WebSocket server with noServer to avoid intercepting Vite's HMR
       const wss = new WebSocketServer({ noServer: true });
       (server.httpServer as Server).on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
         if (req.url === "/__squads_ws") {
@@ -128,27 +134,21 @@ export function squadWatcherPlugin(): Plugin {
             wss.emit("connection", ws, req);
           });
         }
-        // Let Vite handle all other upgrade requests (HMR)
       });
 
-      // Send snapshot on new connection
       wss.on("connection", (ws) => {
         ws.send(JSON.stringify(buildSnapshot(squadsDir)));
       });
 
-      // Ensure squads directory exists
       if (!fs.existsSync(squadsDir)) {
         fs.mkdirSync(squadsDir, { recursive: true });
       }
 
-      // Watch state.json files using Vite's built-in chokidar watcher
       const stateGlob = path.join(squadsDir, "*/state.json").replace(/\\/g, "/");
       server.watcher.add(stateGlob);
 
-      // Debounce timers per squad to avoid reading partial writes
       const changeTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-      // Also watch for new squad.yaml files
       const yamlGlob = path.join(squadsDir, "*/squad.yaml").replace(/\\/g, "/");
       server.watcher.add(yamlGlob);
 

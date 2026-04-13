@@ -1,11 +1,11 @@
 name: "Conteúdo Social Médicos"
 code: "conteudo-social-medicos"
 description: >
-  Produz carrosseis para Instagram Feed posicionando a Doctor Creator como
-  autoridade em creator economy médica. Do rastreamento de notícias médicas,
-  passando pela criação de copy e design, até a publicação no Instagram.
+  Produz cards únicas para Instagram Feed posicionando a Doctor Creator como
+  autoridade em conteúdo médico digital. Do rastreamento de notícias médicas
+  até a publicação no Instagram — sem etapas desnecessárias.
 icon: "🩺"
-version: "1.0.0"
+version: "2.0.0"
 created: "2026-03-23"
 mode: "economico"
 
@@ -15,32 +15,18 @@ memory: "_memory/memories.md"
 
 target_audience: "Médicos e profissionais de saúde que buscam construir autoridade digital"
 platforms:
-  - Instagram Feed (Carrossel)
-performance_mode: "economico"
+  - Instagram Feed (Card Única)
 
 skills:
   - web_search
   - web_fetch
   - instagram-publisher
 
-data:
-  - pipeline/data/research-brief.md
-  - pipeline/data/domain-framework.md
-  - pipeline/data/quality-criteria.md
-  - pipeline/data/output-examples.md
-  - pipeline/data/anti-patterns.md
-  - pipeline/data/tone-of-voice.md
-
 agents:
   - id: pesquisador
     name: "Dr. Scout"
     icon: "🔎"
     path: agents/pesquisador.agent.md
-
-  - id: estrategista
-    name: "Ana Estratégia"
-    icon: "🧭"
-    path: agents/estrategista.agent.md
 
   - id: redator
     name: "Carlos Cópia"

@@ -1,6 +1,6 @@
 import { Application, extend } from "@pixi/react";
 import { Container, Graphics } from "pixi.js";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSquadStore } from "@/store/useSquadStore";
 import { AgentDesk, CELL_W, CELL_H, GRID_OFFSET_X, GRID_OFFSET_Y } from "./AgentDesk";
 import { HandoffEnvelope } from "./HandoffEnvelope";
@@ -12,9 +12,6 @@ import type { Graphics as PixiGraphics } from "pixi.js";
 
 extend({ Container, Graphics });
 
-const MIN_STAGE_W = 400;
-const MIN_STAGE_H = 320;
-
 export function OfficeScene() {
   const state = useSquadStore((s) =>
     s.selectedSquad ? s.activeStates.get(s.selectedSquad) : undefined
@@ -23,46 +20,64 @@ export function OfficeScene() {
     s.selectedSquad ? s.squads.get(s.selectedSquad) : undefined
   );
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState({ w: 800, h: 500 });
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver((entries) => {
+      const r = entries[0].contentRect;
+      setContainerSize({ w: Math.floor(r.width), h: Math.floor(r.height) });
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
   const agents = useMemo(
     () => (state?.agents ? sortAgentsByDesk(state.agents) : []),
     [state]
   );
 
-  const maxCol = agents.length > 0 ? Math.max(...agents.map(a => a.desk.col)) : 1;
-  const maxRow = agents.length > 0 ? Math.max(...agents.map(a => a.desk.row)) : 1;
+  const maxCol = agents.length > 0 ? Math.max(...agents.map((a) => a.desk.col)) : 1;
+  const maxRow = agents.length > 0 ? Math.max(...agents.map((a) => a.desk.row)) : 1;
 
+  // Content dimensions (agent grid)
   const wallTop = TILE * 2;
   const marginX = Math.round(TILE * 1.5);
   const marginY = TILE * 1;
+  const contentW = marginX * 2 + maxCol * CELL_W + GRID_OFFSET_X;
+  const contentH = marginY * 2 + maxRow * CELL_H + GRID_OFFSET_Y;
+
+  // Scale to fill available space, keeping pixel-art crispness
+  const scaleX = containerSize.w / contentW;
+  const scaleY = containerSize.h / contentH;
+  const scale = Math.min(scaleX, scaleY, 2.5); // cap at 2.5x for crispness
+
+  const stageW = containerSize.w;
+  const stageH = containerSize.h;
+
+  // Derived floor coords (before scaling — PixiJS applies scale via container)
   const floorW = marginX * 2 + maxCol * CELL_W;
   const floorH = marginY * 2 + maxRow * CELL_H;
   const floorX = GRID_OFFSET_X - marginX;
   const floorY = GRID_OFFSET_Y - marginY;
-  const stageW = Math.max(floorX + floorW + marginX, MIN_STAGE_W);
-  const stageH = Math.max(floorY + floorH + marginY, MIN_STAGE_H);
 
   const drawBackground = useCallback(
     (g: PixiGraphics) => {
       g.clear();
-
-      // Dark void surround (Gather.town style)
-      g.rect(0, 0, stageW, stageH);
+      g.rect(0, 0, contentW, contentH);
       g.fill({ color: 0x101018 });
 
-      // Floor (wood planks)
       drawFloor(g, floorW, floorH, floorX, floorY);
 
-      // Top wall — clean cream
       g.rect(floorX - 1, 0, floorW + 2, wallTop);
       g.fill({ color: COLORS.wallFace });
-      // Baseboard (dark strip at bottom of wall)
       g.rect(floorX - 1, wallTop - 3, floorW + 2, 3);
       g.fill({ color: COLORS.wallShadow });
-      // Shadow cast on floor from wall
       g.rect(floorX, wallTop, floorW, 3);
       g.fill({ color: 0x000000, alpha: 0.06 });
 
-      // Room borders (thin dark lines around floor perimeter)
       g.rect(floorX - 1, wallTop, 1, floorH);
       g.fill({ color: COLORS.wallShadow });
       g.rect(floorX + floorW, wallTop, 1, floorH);
@@ -70,78 +85,86 @@ export function OfficeScene() {
       g.rect(floorX - 1, wallTop + floorH, floorW + 2, 1);
       g.fill({ color: COLORS.wallShadow });
 
-      // Wall-mounted furniture
       const wallItemY = 4;
       drawBookshelf(g, floorX + 10, wallItemY);
-      if (floorW > 300) {
-        drawBookshelf(g, floorX + floorW - 74, wallItemY);
-      }
+      if (floorW > 300) drawBookshelf(g, floorX + floorW - 74, wallItemY);
       drawWhiteboard(g, floorX + floorW / 2 - 24, wallItemY);
       drawClock(g, floorX + floorW / 2 + 28, wallItemY + 6);
 
-      // Floor furniture
       drawPlant(g, floorX + 4, floorY + 8);
       drawPlant(g, floorX + floorW - 36, floorY + 8);
       drawPlant(g, floorX + 4, floorY + floorH - 36);
       drawFilingCabinet(g, floorX + floorW - 36, floorY + floorH - 52);
-
-      if (floorH > 200) {
-        drawCoffeeMachine(g, floorX + floorW - 36, floorY + floorH / 2 - 16);
-      }
+      if (floorH > 200) drawCoffeeMachine(g, floorX + floorW - 36, floorY + floorH / 2 - 16);
     },
-    [stageW, stageH, floorW, floorH, floorX, floorY, wallTop]
+    [contentW, contentH, floorW, floorH, floorX, floorY, wallTop]
   );
 
   if (!state) {
     return (
       <div
+        ref={containerRef}
         style={{
           flex: 1,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          color: "var(--text-secondary)",
           flexDirection: "column",
-          gap: 8,
+          gap: 12,
+          background: "#101018",
+          color: "var(--text-secondary)",
         }}
       >
         {squadInfo ? (
           <>
-            <span style={{ fontSize: 40 }}>{squadInfo.icon}</span>
-            <span style={{ fontSize: 16 }}>{squadInfo.name}</span>
-            <span style={{ fontSize: 12 }}>{squadInfo.description}</span>
-            <span style={{ fontSize: 11, marginTop: 8 }}>Not running</span>
+            <span style={{ fontSize: 56, filter: "grayscale(0.3)" }}>{squadInfo.icon}</span>
+            <span style={{ fontSize: 18, color: "var(--text-primary)", fontWeight: 700 }}>{squadInfo.name}</span>
+            <span style={{ fontSize: 12, maxWidth: 320, textAlign: "center", lineHeight: 1.6 }}>
+              {squadInfo.description}
+            </span>
+            <span style={{ fontSize: 11, marginTop: 4, opacity: 0.5 }}>
+              Squad inativo — use ▶ Ativar para iniciar
+            </span>
           </>
         ) : (
-          <span>Select a squad to monitor</span>
+          <>
+            <span style={{ fontSize: 40 }}>🏢</span>
+            <span style={{ fontSize: 14 }}>Selecione um squad para visualizar</span>
+          </>
         )}
       </div>
     );
   }
 
   return (
-    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <Application width={stageW} height={stageH} backgroundColor={0x101018}>
-        <pixiContainer>
-          <pixiGraphics draw={drawBackground} />
-          {agents.map((agent, i) => (
-            <AgentDesk key={agent.id} agent={agent} agentIndex={i} />
-          ))}
-          {state.handoff &&
-            (() => {
-              const from = findAgent(state, state.handoff!.from);
-              const to = findAgent(state, state.handoff!.to);
-              if (!from || !to) return null;
-              return (
-                <HandoffEnvelope
-                  handoff={state.handoff!}
-                  fromAgent={from}
-                  toAgent={to}
-                />
-              );
-            })()}
-        </pixiContainer>
-      </Application>
+    <div
+      ref={containerRef}
+      style={{ flex: 1, width: "100%", height: "100%", overflow: "hidden", background: "#101018" }}
+    >
+      {stageW > 0 && stageH > 0 && (
+        <Application width={stageW} height={stageH} backgroundColor={0x101018}>
+          {/* Centered, scaled container */}
+          <pixiContainer
+            x={Math.max(0, (stageW - contentW * scale) / 2)}
+            y={Math.max(0, (stageH - contentH * scale) / 2)}
+            scale={scale}
+          >
+            <pixiGraphics draw={drawBackground} />
+            {agents.map((agent, i) => (
+              <AgentDesk key={agent.id} agent={agent} agentIndex={i} />
+            ))}
+            {state.handoff &&
+              (() => {
+                const from = findAgent(state, state.handoff!.from);
+                const to = findAgent(state, state.handoff!.to);
+                if (!from || !to) return null;
+                return (
+                  <HandoffEnvelope handoff={state.handoff!} fromAgent={from} toAgent={to} />
+                );
+              })()}
+          </pixiContainer>
+        </Application>
+      )}
     </div>
   );
 }

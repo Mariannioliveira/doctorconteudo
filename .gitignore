@@ -3,10 +3,11 @@ node_modules/
 *.log
 *.DS_Store
 squads/*/output/
-_opensquad/_memory/company.md
-_opensquad/_memory/preferences.md
 _opensquad/_browser_profile/
 _opensquad/logs/
+webapp/.venv/
 webapp/__pycache__/
 webapp/**/__pycache__/
 *.pyc
+dashboard/dist/
+tsconfig.tsbuildinfo

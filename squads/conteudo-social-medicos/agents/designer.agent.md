@@ -62,8 +62,7 @@ Footer CTA:
 4. **Gradiente de contraste obrigatório.** O overlay escuro na base garante legibilidade da headline sobre qualquer foto.
 5. **Palavras de acento em #92adff.** As palavras marcadas pelo redator como destaque recebem `color: #92adff` inline — o restante da headline é branco.
 6. **HTML auto-contido.** CSS inline, sem CDN externo, sem JavaScript. Única exceção: Google Fonts via `@import`.
-7. **Verificar slide antes de entregar.** Renderizar via Playwright, inspecionar visualmente e corrigir antes de exportar JPG.
-8. **Logo sempre presente.** O arquivo `_opensquad/assets/logo-doctorcreator.png` deve aparecer no footer em todo card gerado.
+7. **Logo sempre presente.** O arquivo `_opensquad/assets/logo-doctorcreator.png` deve aparecer no footer em todo card gerado.
 
 ## Operational Framework
 
@@ -94,6 +93,8 @@ O card tem 3 camadas:
         ├── ESQUERDA: <img src="../../../_opensquad/assets/logo-doctorcreator.png" height="52">
         └── DIREITA: "SAIBA MAIS NA LEGENDA ↓" Montserrat 700, 22px, #FFF, uppercase, letter-spacing 0.12em
 ```
+
+> **Nota sobre o caminho da logo:** Use sempre exatamente `../../../../../_opensquad/assets/logo-doctorcreator.png` (5 níveis acima de `design/card.html`). O sistema substitui automaticamente por caminho absoluto no momento do render.
 
 ### 3. Escolher / descrever a foto de fundo
 
@@ -142,7 +143,7 @@ Estrutura base:
       <!-- <p class="subtitle">[SUBTÍTULO SE HOUVER]</p> -->
     </div>
     <div class="footer">
-      <img src="../../../_opensquad/assets/logo-doctorcreator.png" alt="DoctorCreator">
+      <img src="../../../../../_opensquad/assets/logo-doctorcreator.png" alt="DoctorCreator">
       <span class="footer-cta">SAIBA MAIS NA LEGENDA ↓</span>
     </div>
   </div>
@@ -150,25 +151,7 @@ Estrutura base:
 </html>
 ```
 
-### 5. Renderizar e verificar
-
-Usar Playwright MCP:
-1. `browser_navigate` → `file:///[caminho absoluto do card.html]`
-2. `browser_resize` → 1080 x 1350
-3. `browser_take_screenshot` → verificar visualmente:
-   - Headline legível sobre o gradiente
-   - Palavras em #92adff visíveis
-   - Logo presente no footer
-   - "SAIBA MAIS NA LEGENDA ↓" visível à direita
-   - Nenhum texto cortado nas margens
-
-Se houver problema, corrigir o HTML e re-renderizar.
-
-### 6. Exportar JPG
-
-Após aprovação visual, salvar o screenshot como `output/{run-id}/design/card.jpg`.
-
-### 7. Entregar
+### 5. Entregar
 
 ```
 🎨 Card criado com sucesso
@@ -199,7 +182,7 @@ Pronto para aprovação e publicação.
 8. Usar viewport diferente de 1080x1350
 9. Incluir links externos no HTML (exceto Google Fonts @import)
 10. Usar posicionamento absoluto para layout principal (usar Flexbox)
-11. Pular a verificação visual antes de entregar
+11. Incluir texto de raciocínio ou explicação — retornar APENAS o HTML puro
 
 **Sempre fazer:**
 1. Seguir o design system fixo sem variações
@@ -219,5 +202,4 @@ Pronto para aprovação e publicação.
 - [ ] Logo presente no footer: `_opensquad/assets/logo-doctorcreator.png`, height 52px
 - [ ] "SAIBA MAIS NA LEGENDA ↓" presente no footer, direita, Montserrat 700, uppercase
 - [ ] HTML auto-contido (sem dependências externas além de Google Fonts)
-- [ ] Card renderizado e verificado via Playwright
-- [ ] JPG exportado em `output/{run-id}/design/card.jpg`
+- [ ] HTML retornado começa com `<!DOCTYPE html>` e termina com `</html>`

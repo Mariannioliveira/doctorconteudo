@@ -31,9 +31,9 @@ class RunState(BaseModel):
 
 class CheckpointDecision(BaseModel):
     step_id: str
-    action: str  # "approve", "select", "reject", "save_draft", "adjust_copy", etc.
-    value: Optional[Any] = None       # selected story, hook letter, etc.
-    feedback: Optional[str] = None    # free-text feedback if requesting changes
+    action: str
+    value: Optional[Any] = None
+    feedback: Optional[str] = None
 
 
 class RunListItem(BaseModel):
@@ -50,7 +50,27 @@ class RunContext:
     checkpoint_event: asyncio.Event
     checkpoint_decision: Optional[dict] = None
     sse_queue: asyncio.Queue = field(default_factory=asyncio.Queue)
+    # Subscriber queues for SSE streaming (multiple clients)
+    subscriber_queues: list = field(default_factory=list)
     task: Optional[asyncio.Task] = None
 
     async def emit(self, event_type: str, data: dict):
-        await self.sse_queue.put({"event": event_type, "data": data})
+        msg = {"event": event_type, "data": data}
+        await self.sse_queue.put(msg)
+        # Also broadcast to all SSE subscribers
+        for q in list(self.subscriber_queues):
+            try:
+                q.put_nowait(msg)
+            except Exception:
+                pass
+
+    def subscribe(self) -> asyncio.Queue:
+        q: asyncio.Queue = asyncio.Queue(maxsize=500)
+        self.subscriber_queues.append(q)
+        return q
+
+    def unsubscribe(self, q: asyncio.Queue) -> None:
+        try:
+            self.subscriber_queues.remove(q)
+        except ValueError:
+            pass

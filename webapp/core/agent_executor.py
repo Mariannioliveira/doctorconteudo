@@ -1,20 +1,37 @@
 """
-Builds prompts and calls the Anthropic API for each agent step.
-Handles web_search tool for agents that require it.
+Builds prompts and calls the Claude CLI for each agent step.
+
+Authentication:
+  Set ANTHROPIC_API_KEY in webapp/.env. The subprocess runs with --bare,
+  which forces the CLI to use only that key, ignoring any OAuth session
+  logged in the terminal. This pins execution to a specific account regardless
+  of what is logged in Cursor, the desktop app, or any other terminal.
+
+News research (step-01):
+  Articles are pre-fetched via DuckDuckGo News (no API key required) before
+  calling Claude. The researcher agent receives the raw articles and only needs
+  to rank/filter them — web_search skill is not used, saving Claude usage.
 """
 import asyncio
 import json
-import re
+import os
 from pathlib import Path
-from typing import Callable, AsyncIterator
+from typing import Callable
 
-import anthropic
+from dotenv import dotenv_values
 
-from .config import ANTHROPIC_API_KEY, MODELS, SQUAD_ROOT, PROJECT_ROOT
+from .config import SQUAD_ROOT, PROJECT_ROOT
 from .file_manager import (
     load_agent_md, load_squad_yaml, load_memory_file,
     read_artifact, write_artifact, get_run_dir
 )
+
+# Load project-level .env (webapp/.env)
+_WEBAPP_ROOT = Path(__file__).parent.parent
+_DOTENV_PATH = _WEBAPP_ROOT / ".env"
+_DOTENV = dotenv_values(_DOTENV_PATH)
+
+ANTHROPIC_API_KEY: str | None = _DOTENV.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_API_KEY") or None
 
 
 # ─────────────────────────────────────────────
@@ -28,33 +45,45 @@ async def execute_step(
     on_token: Callable[[str], None] | None = None,
 ) -> str:
     """
-    Execute an agent step. Returns the primary output content as a string.
+    Execute an agent step via Claude CLI.
+    Returns the primary output content as a string.
     Saves all output files to the run directory.
     """
+    # step-08 (publicador) runs the Instagram publish script — does not call Claude
+    if step.get("id") == "step-08":
+        output = await _execute_publish(run_id, on_token)
+        _save_output("step-08", run_id, output, "publicador")
+        return output
+
     agent_id = step.get("agent", "")
     agent_meta, agent_body = load_agent_md(agent_id)
 
-    model_tier = agent_meta.get("model_tier", "standard")
-    model = MODELS.get(model_tier, MODELS["standard"])
+    # step-01: pre-fetch news externally so Claude only ranks, no web_search used
+    prefetched_news = ""
+    if step.get("id") == "step-01":
+        from .news_fetcher import fetch_news
+        period_days = _get_research_period(run_id)
+        prefetched_news = fetch_news(research_period_days=period_days)
+
+    # Never pass web_search to Claude for step-01 — articles are pre-fetched
     skills = agent_meta.get("skills", [])
+    has_web_search = "web_search" in skills and step.get("id") != "step-01"
 
     system_prompt = _build_system_prompt(agent_body, run_id)
     user_message = _build_user_message(step, run_id, last_decision)
 
-    if "web_search" in skills:
-        output = await _call_with_web_search(
-            model, system_prompt, user_message, on_token
-        )
-    else:
-        output = await _call_streaming(
-            model, system_prompt, user_message, on_token
-        )
+    if prefetched_news:
+        user_message = prefetched_news + "\n\n---\n\n" + user_message
 
-    # Save output to the appropriate file(s)
+    model_tier = agent_meta.get("model_tier", "standard")
+    output = await _call_claude_cli(
+        system_prompt, user_message, on_token,
+        web_search=has_web_search, model_tier=model_tier,
+    )
+
     _save_output(step["id"], run_id, output, agent_id)
 
-    # Special post-processing for designer step
-    if step["id"] == "step-09":
+    if step["id"] == "step-06":
         await _render_card_to_jpg(run_id)
 
     return output
@@ -69,7 +98,6 @@ def _build_system_prompt(agent_body: str, run_id: str) -> str:
     company_md = load_memory_file("company.md")
     preferences_md = load_memory_file("preferences.md")
 
-    # Load data files declared in squad.yaml
     data_context = ""
     for data_path in squad_yaml.get("data", []):
         content = _read_project_file(data_path)
@@ -92,14 +120,28 @@ def _build_system_prompt(agent_body: str, run_id: str) -> str:
     return "\n\n".join(p for p in parts if p.strip())
 
 
+def _get_research_period(run_id: str) -> int:
+    """Reads the research period (days) chosen at step-00. Defaults to 30."""
+    import json as _json
+    raw = read_artifact(run_id, "research-period.json")
+    if raw:
+        try:
+            data = _json.loads(raw)
+            value = data.get("value", "30 dias")
+            return int(str(value).split()[0])
+        except Exception:
+            pass
+    return 30
+
+
 def _build_user_message(step: dict, run_id: str, last_decision: dict | None) -> str:
+    from datetime import datetime, timezone
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
     step_id = step["id"]
     step_name = step.get("name", step_id)
-
-    # Collect all relevant artifacts from the current run
     artifacts_context = _collect_artifacts_context(step_id, run_id)
 
-    # Decision context from last checkpoint
     decision_context = ""
     if last_decision:
         action = last_decision.get("action", "")
@@ -108,20 +150,18 @@ def _build_user_message(step: dict, run_id: str, last_decision: dict | None) -> 
 
         if step_id == "step-01":
             period = value if isinstance(value, str) else "15 dias"
-            decision_context = f"\n**Período de pesquisa definido pelo usuário:** {period}\n"
-            decision_context += f"Use exatamente este período como filtro de data nas suas buscas.\n"
-        elif step_id == "step-05" and action == "request_changes":
+            decision_context = f"\n**Data de hoje:** {today}\n"
+            decision_context += f"**Período de pesquisa definido pelo usuário:** {period}\n"
+            decision_context += f"Busque APENAS notícias publicadas nos últimos {period} a partir de {today}. Filtre por data nas suas buscas.\n"
+        elif step_id == "step-03" and action == "request_changes":
             decision_context = f"\n**Feedback do usuário sobre o rascunho anterior:**\n{feedback}\nRevise o conteúdo considerando este feedback.\n"
-        elif step_id == "step-05" and value:
-            hook_letter = value if isinstance(value, str) else str(value)
-            decision_context = f"\n**Hook escolhido pelo usuário:** Hook {hook_letter}\n"
-        elif step_id == "step-09" and action == "adjust_copy":
-            decision_context = f"\n**O usuário solicitou ajuste de copy antes do design. Use a versão mais recente do content-draft.md.**\n"
+        elif step_id == "step-06" and action == "adjust_design":
+            decision_context = "\n**O usuário solicitou ajuste no design. Use a versão mais recente do content-draft.md.**\n"
 
-    # Expected output instructions
     output_instructions = _get_output_instructions(step_id)
 
-    msg = f"""# Execute: {step_name}
+    return f"""# Execute: {step_name}
+**Data atual:** {today}
 
 {decision_context}
 
@@ -133,18 +173,14 @@ def _build_user_message(step: dict, run_id: str, last_decision: dict | None) -> 
 
 Entregue o resultado no formato especificado. Seja direto e completo."""
 
-    return msg
-
 
 def _collect_artifacts_context(step_id: str, run_id: str) -> str:
-    """Load relevant artifacts from previous steps as context."""
     artifact_map = {
         "step-01": [],
         "step-03": ["v1/ranked-stories.yaml", "selected-story.yaml"],
-        "step-05": ["v1/editorial-brief.md", "selected-story.yaml", "v1/selected-hook.yaml"],
-        "step-07": ["v1/content-draft.md"],
-        "step-09": ["v1/content-draft.md", "v1/quality-review.md"],
-        "step-11": ["v1/content-draft.md", "design/card.html"],
+        "step-04": ["v1/content-draft.md"],
+        "step-06": ["v1/content-draft.md", "v1/quality-review.md"],
+        "step-08": ["v1/content-draft.md", "design/card.html"],
     }
     files_to_load = artifact_map.get(step_id, [])
     parts = []
@@ -164,119 +200,141 @@ def _get_output_instructions(step_id: str) -> str:
             "Retorne APENAS o YAML, sem texto adicional antes ou depois."
         ),
         "step-03": (
-            "Crie o brief editorial completo seguindo seu Output Format.\n"
-            "Inclua: Ângulo Estratégico, Diagnóstico de Consciência, Big Idea, "
-            "Formato do Carrossel, 3 Hooks com drivers diferentes, e Instruções para o Redator.\n"
-            "Retorne o markdown completo do brief."
+            "Crie o conteúdo completo para a card única no Instagram.\n"
+            "Leia a notícia selecionada em selected-story.yaml e siga exatamente o seu Output Format:\n\n"
+            "=== HEADLINE DO CARD ===\n"
+            "[Headline factual — max 10 palavras, estilo manchete de jornal]\n\n"
+            "=== PALAVRAS EM DESTAQUE (#92adff) ===\n"
+            "[palavra1], [expressão2]\n\n"
+            "=== DESCRIÇÃO DO VISUAL ===\n"
+            "[Descrição da foto de fundo ideal]\n\n"
+            "=== LEGENDA INSTAGRAM ===\n"
+            "[Legenda educacional completa + (Fonte: veículo) + hashtags]\n\n"
+            "Tudo em português do Brasil. Não inclua texto fora deste formato."
         ),
-        "step-05": (
-            "Crie o conteúdo completo: Card Único Instagram + Legenda.\n"
-            "Siga exatamente o Output Format especificado:\n"
-            "- Card Único com Headline, Palavras em destaque (#92adff), Visual, Footer\n"
-            "- Legenda Instagram completa com hook, corpo, CTA e hashtags\n"
-            "Use o hook escolhido pelo usuário como ponto de partida."
-        ),
-        "step-07": (
-            "Revise o conteúdo seguindo seus critérios de avaliação.\n"
-            "Avalie cada critério com score e justificativa.\n"
+        "step-04": (
+            "Revise o conteúdo criado pelo Carlos Cópia (content-draft.md).\n"
+            "Avalie headline e legenda seguindo seus critérios.\n"
             "Emita um VEREDICTO claro: APROVAR, APROVAR COM RESSALVAS ou REJEITAR.\n"
-            "Inclua feedback detalhado e, se rejeitado, o caminho para aprovação."
+            "Retorne a revisão no seu Output Format."
         ),
-        "step-09": (
+        "step-06": (
             "Crie o HTML do card Instagram seguindo exatamente o Design System fixo.\n"
-            "Use os dados do content-draft.md: headline, palavras em destaque, descrição do visual.\n"
+            "Leia o content-draft.md para obter: headline (=== HEADLINE DO CARD ===), "
+            "palavras em destaque (=== PALAVRAS EM DESTAQUE ===) e descrição do visual.\n"
             "Gere um HTML completo e auto-contido (CSS inline, Google Fonts via @import).\n"
             "Retorne APENAS o HTML, começando com <!DOCTYPE html>."
-        ),
-        "step-11": (
-            "Gere o relatório de publicação.\n"
-            "Documente: data/hora, conteúdo publicado, plataformas, status.\n"
-            "Nota: A publicação no Instagram via API requer autenticação manual. "
-            "Inclua as instruções para publicação manual dos arquivos gerados.\n"
-            "Retorne o relatório em markdown."
         ),
     }
     return instructions.get(step_id, "Execute sua tarefa conforme seu guia operacional.")
 
 
 # ─────────────────────────────────────────────
-#  Anthropic API calls
+#  Anthropic SDK call (API key from .env)
 # ─────────────────────────────────────────────
 
-async def _call_with_web_search(
-    model: str,
+# Model mapping by agent model_tier
+_MODEL_MAP = {
+    "fast": "claude-haiku-4-5-20251001",
+    "standard": "claude-sonnet-4-6",
+    "powerful": "claude-opus-4-6",
+}
+_DEFAULT_MODEL = "claude-sonnet-4-6"
+
+
+async def _call_claude_cli(
     system: str,
     user_message: str,
     on_token: Callable[[str], None] | None,
+    web_search: bool = False,
+    model_tier: str = "standard",
 ) -> str:
-    """Call Anthropic API with web_search tool enabled."""
+    """
+    Calls the Anthropic API directly via the Python SDK using ANTHROPIC_API_KEY
+    from webapp/.env. Never uses the CLI subprocess or terminal OAuth session.
+    Streams response tokens to on_token as they arrive.
+    """
+    import anthropic
+
+    if not ANTHROPIC_API_KEY:
+        raise RuntimeError("ANTHROPIC_API_KEY não configurado em webapp/.env")
+
     client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+    model = _MODEL_MAP.get(model_tier, _DEFAULT_MODEL)
 
-    messages = [{"role": "user", "content": user_message}]
+    tools = []
+    if web_search:
+        tools = [{"type": "web_search_20250305", "name": "web_search"}]
+
+    kwargs: dict = {
+        "model": model,
+        "max_tokens": 8096,
+        "system": system,
+        "messages": [{"role": "user", "content": user_message}],
+    }
+    if tools:
+        kwargs["tools"] = tools
+
     full_text = ""
-
     try:
-        # Try with web search tool (beta)
-        response = await client.beta.messages.create(
-            model=model,
-            max_tokens=8096,
-            system=system,
-            messages=messages,
-            tools=[{"type": "web_search_20250305", "name": "web_search"}],
-            betas=["web-search-2025-03-05"],
-        )
-
-        for block in response.content:
-            if hasattr(block, "text"):
-                full_text += block.text
-            elif block.type == "tool_result":
-                pass  # search results are consumed internally by the model
-
-        if on_token and full_text:
-            on_token(full_text)
-
-    except Exception as e:
-        # Fallback: call without web search, inject date context
+        async with client.messages.stream(**kwargs) as stream:
+            async for text in stream.text_stream:
+                full_text += text
+                if on_token:
+                    on_token(text)
+    except anthropic.APIStatusError as e:
+        error_msg = f"[Anthropic API erro {e.status_code}: {e.message}]"
         if on_token:
-            on_token(f"[Web search indisponível, usando conhecimento interno: {e}]\n\n")
-        full_text = await _call_streaming(model, system, user_message, on_token)
+            on_token(f"\n{error_msg}\n")
+        return (full_text + f"\n{error_msg}").strip() if full_text else error_msg
 
-    return full_text
-
-
-async def _call_streaming(
-    model: str,
-    system: str,
-    user_message: str,
-    on_token: Callable[[str], None] | None,
-) -> str:
-    """Stream response from Anthropic API, calling on_token for each chunk."""
-    client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
-    full_text = ""
-
-    async with client.messages.stream(
-        model=model,
-        max_tokens=8096,
-        system=system,
-        messages=[{"role": "user", "content": user_message}],
-    ) as stream:
-        async for text in stream.text_stream:
-            full_text += text
-            if on_token:
-                on_token(text)
-
-    return full_text
+    return full_text.strip()
 
 
 # ─────────────────────────────────────────────
 #  Output saving
 # ─────────────────────────────────────────────
 
+def _extract_html(content: str) -> str:
+    """Extract only the HTML block from agent output, ignoring reasoning text."""
+    import re
+    # Try to find <!DOCTYPE html> ... </html> block
+    match = re.search(r'(<!DOCTYPE\s+html[\s\S]*</html>)', content, re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
+    # Fallback: find <html> ... </html>
+    match = re.search(r'(<html[\s\S]*</html>)', content, re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
+    return content
+
+
 def _save_output(step_id: str, run_id: str, content: str, agent_id: str):
     from .config import STEP_OUTPUT_FILES
     output_files = STEP_OUTPUT_FILES.get(step_id, [])
     for rel_path in output_files:
-        write_artifact(run_id, rel_path, content)
+        # For design HTML, extract only the HTML block from the raw agent output
+        if rel_path.endswith(".html"):
+            write_artifact(run_id, rel_path, _extract_html(content))
+        else:
+            write_artifact(run_id, rel_path, content)
+
+
+def _patch_html_paths(html: str, run_id: str) -> str:
+    """
+    Replace relative logo paths with absolute file:// URLs so Playwright
+    can load the logo regardless of how deep the run directory is.
+    """
+    import re as _re
+    logo_abs = (PROJECT_ROOT / "_opensquad" / "assets" / "logo-doctorcreator.png").resolve()
+    logo_url = f"file://{logo_abs}"
+    # Replace any path ending in logo-doctorcreator.png (relative or absolute)
+    html = _re.sub(
+        r'["\']([^"\']*logo-doctorcreator\.png)["\']',
+        f'"{logo_url}"',
+        html,
+    )
+    return html
 
 
 async def _render_card_to_jpg(run_id: str):
@@ -288,6 +346,11 @@ async def _render_card_to_jpg(run_id: str):
     if not html_path.exists():
         return
 
+    # Patch logo paths before rendering
+    original_html = html_path.read_text(encoding="utf-8")
+    patched_html = _patch_html_paths(original_html, run_id)
+    html_path.write_text(patched_html, encoding="utf-8")
+
     try:
         from playwright.async_api import async_playwright
         async with async_playwright() as p:
@@ -295,16 +358,152 @@ async def _render_card_to_jpg(run_id: str):
             page = await browser.new_page()
             await page.set_viewport_size({"width": 1080, "height": 1350})
             await page.goto(f"file://{html_path.resolve()}")
-            await page.wait_for_timeout(1500)  # wait for fonts to load
+            # Wait for fonts + background image to load
+            await page.wait_for_timeout(2500)
             await page.screenshot(path=str(jpg_path), full_page=False)
             await browser.close()
+        # Remove stale error file if render succeeded
+        err_file = run_dir / "design" / "render-error.txt"
+        if err_file.exists():
+            err_file.unlink()
     except Exception as e:
-        # Log but don't fail the pipeline
         print(f"[designer] Playwright render failed: {e}")
-        # Create a placeholder note
         (run_dir / "design" / "render-error.txt").write_text(
             f"Render failed: {e}\nInstall Playwright: playwright install chromium"
         )
+
+
+# ─────────────────────────────────────────────
+#  Instagram publish (step-11)
+# ─────────────────────────────────────────────
+
+def _extract_caption(draft: str) -> str:
+    """Extract the Instagram caption block from content-draft.md."""
+    import re
+    match = re.search(r'=== LEGENDA INSTAGRAM ===\s*\n(.*?)(?:\n===|\Z)', draft, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return ""
+
+
+async def _execute_publish(run_id: str, on_token: Callable[[str], None] | None) -> str:
+    """Execute the Instagram publish script for step-11. Does not call Claude."""
+    import re
+    from datetime import datetime, timezone
+
+    run_dir = get_run_dir(run_id)
+    env_path = PROJECT_ROOT / ".env"
+
+    def emit(text: str):
+        if on_token:
+            on_token(text)
+
+    # 1. Locate card.jpg
+    card_jpg = run_dir / "design" / "card.jpg"
+    if not card_jpg.exists():
+        msg = (
+            "❌ card.jpg não encontrado em design/\n\n"
+            "O Marco Design precisa gerar e renderizar o card antes da publicação."
+        )
+        emit(msg)
+        return f"# Relatório de Publicação\n\n**Status:** ERRO\n\n{msg}"
+
+    # 2. Extract caption
+    draft = read_artifact(run_id, "v1/content-draft.md")
+    caption = _extract_caption(draft)
+    if not caption:
+        msg = (
+            "❌ Legenda não encontrada em content-draft.md\n\n"
+            "Verifique se o Carlos Cópia gerou a seção '=== LEGENDA INSTAGRAM ==='."
+        )
+        emit(msg)
+        return f"# Relatório de Publicação\n\n**Status:** ERRO\n\n{msg}"
+
+    caption = caption[:2200]
+
+    # 3. Check Instagram credentials
+    env_content = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
+    has_token = bool(re.search(r'INSTAGRAM_ACCESS_TOKEN=\S+', env_content))
+    has_user = bool(re.search(r'INSTAGRAM_USER_ID=\S+', env_content))
+
+    if not has_token or not has_user:
+        missing = []
+        if not has_token:
+            missing.append("INSTAGRAM_ACCESS_TOKEN")
+        if not has_user:
+            missing.append("INSTAGRAM_USER_ID")
+        msg = (
+            f"❌ Credenciais do Instagram não configuradas: {', '.join(missing)}\n\n"
+            f"Adicione em `.env` (raiz do projeto):\n"
+            f"INSTAGRAM_ACCESS_TOKEN=seu_token\n"
+            f"INSTAGRAM_USER_ID=seu_user_id\n\n"
+            f"Consulte `skills/instagram-publisher/SKILL.md` para instruções."
+        )
+        emit(msg)
+        return f"# Relatório de Publicação\n\n**Status:** CREDENCIAIS FALTANDO\n\n{msg}"
+
+    # 4. Run publish script
+    script_path = PROJECT_ROOT / "skills" / "instagram-publisher" / "scripts" / "publish.js"
+    emit("📸 Enviando card para o Instagram...\n")
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "node",
+            f"--env-file={env_path}",
+            str(script_path),
+            "--images", str(card_jpg),
+            "--caption", caption,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            cwd=str(PROJECT_ROOT),
+        )
+
+        stdout_lines: list[str] = []
+        async for line in proc.stdout:  # type: ignore[union-attr]
+            text = line.decode("utf-8", errors="replace")
+            stdout_lines.append(text)
+            emit(text)
+
+        await proc.wait()
+        full_output = "".join(stdout_lines)
+
+        if proc.returncode != 0:
+            return (
+                f"# Relatório de Publicação\n\n**Status:** ERRO (código {proc.returncode})\n\n"
+                f"```\n{full_output}\n```"
+            )
+
+        # Parse post URL and ID from script output
+        post_url = next(
+            (line.split("URL:")[-1].strip() for line in stdout_lines if "URL:" in line), ""
+        )
+        post_id = next(
+            (line.split("Post ID:")[-1].strip() for line in stdout_lines if "Post ID:" in line), ""
+        )
+
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        return (
+            f"# Relatório de Publicação\n\n"
+            f"**Status:** PUBLICADO ✅\n"
+            f"**Data:** {ts}\n\n"
+            f"## Post\n"
+            f"- **Post ID:** {post_id}\n"
+            f"- **URL:** {post_url}\n\n"
+            f"## Card publicado\n"
+            f"- `design/card.jpg`\n\n"
+            f"## Log\n"
+            f"```\n{full_output.strip()}\n```"
+        )
+
+    except FileNotFoundError:
+        msg = "❌ Node.js não encontrado. Instale Node.js para publicar no Instagram."
+        emit(msg)
+        return f"# Relatório de Publicação\n\n**Status:** ERRO\n\n{msg}"
+
+    except Exception as e:
+        msg = f"❌ Erro inesperado: {e}"
+        emit(msg)
+        return f"# Relatório de Publicação\n\n**Status:** ERRO\n\n{msg}"
 
 
 # ─────────────────────────────────────────────
@@ -315,7 +514,6 @@ def _read_project_file(rel_path: str) -> str:
     path = PROJECT_ROOT / rel_path
     if path.exists():
         return path.read_text(encoding="utf-8")
-    # Also try relative to SQUAD_ROOT
     path2 = SQUAD_ROOT / rel_path.replace(f"squads/{SQUAD_ROOT.name}/", "")
     if path2.exists():
         return path2.read_text(encoding="utf-8")
