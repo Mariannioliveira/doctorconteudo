@@ -315,10 +315,14 @@ async def run_pipeline(run_id: str, run_ctx: RunContext):
         })
 
     except asyncio.CancelledError:
-        state["status"] = "error"
-        state["error"] = "Pipeline cancelado"
-        save_run_state(state)
-        await run_ctx.emit("run_error", {"error": "Pipeline cancelado pelo usuário"})
+        # User clicked Parar. stop_squad_run owns the final state.json write
+        # (sets status=idle and broadcasts), so we must NOT overwrite it here
+        # with status=error — that would race and end up showing "error" in the UI.
+        try:
+            await run_ctx.emit("run_error", {"error": "Pipeline parado pelo usuário"})
+        except Exception:
+            pass
+        raise
 
     except Exception as e:
         import traceback

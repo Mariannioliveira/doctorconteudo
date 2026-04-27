@@ -424,12 +424,22 @@ async def start_squad_run(squad_code: str):
 
 @app.post("/api/squads/{squad_code}/stop")
 async def stop_squad_run(squad_code: str):
-    # Cancel in-process task
+    # Cancel in-process task and wait for it to actually finish.
+    # We must await the task before writing the final state, otherwise
+    # the pipeline coroutine may still be executing its CancelledError
+    # handler and could overwrite our state.json with status=error.
     ctx = active_runs.pop(squad_code, None)
     if ctx:
         if ctx.task and not ctx.task.done():
             ctx.task.cancel()
-        # Notify SSE subscribers
+            try:
+                # Bounded wait so a stuck task can't hang the stop endpoint.
+                # The pipeline only awaits on asyncio.Event (checkpoints),
+                # asyncio.sleep, or the Anthropic stream — all of which
+                # respond to CancelledError immediately.
+                await asyncio.wait_for(ctx.task, timeout=5.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
+                pass
         try:
             await ctx.emit("run_error", {"error": "Squad parado pelo usuário"})
         except Exception:
@@ -439,12 +449,13 @@ async def stop_squad_run(squad_code: str):
     stop_signal = SQUADS_ROOT / squad_code / ".stop_signal"
     stop_signal.write_text("stop", encoding="utf-8")
 
-    # Update state
+    # Now that the task has exited, set the authoritative final state.
     state = load_squad_state(squad_code)
     if state:
         for a in state.get("agents", []):
             a["status"] = "idle"
         state["status"] = "idle"
+        state["error"] = None
         state["updatedAt"] = now_iso()
         save_squad_state(squad_code, state)
         await ws_manager.broadcast({"type": "SQUAD_UPDATE", "squad": squad_code, "state": state})
