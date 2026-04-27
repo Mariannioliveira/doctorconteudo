@@ -39,14 +39,12 @@ export function ChatPanel() {
   // Connect SSE stream
   useSquadStream(selectedSquad);
 
-  // Scroll to checkpoint top when pending; otherwise scroll to bottom
+  // Always scroll to bottom so the checkpoint action footer (Confirmar/etc.) stays visible.
+  // Scrolling to the checkpoint's top hid the action buttons whenever prior agent messages
+  // pushed the card past the viewport — bug only "fixed" itself on reload, when those
+  // ephemeral agent messages were gone.
   useEffect(() => {
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg?.type === "checkpoint" && !lastMsg.resolved) {
-      setTimeout(() => checkpointRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
-    } else {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length]);
 
   const isRunning = activeState?.status === "running" || activeState?.status === "checkpoint";
@@ -888,7 +886,9 @@ function StoryCard({
 
 function OutputCard({ file, content }: { file: string; content: string; step: string }) {
   const [expanded, setExpanded] = useState(false);
-  const preview = content.slice(0, 300);
+  const PREVIEW_CHARS = 600;
+  const preview = content.slice(0, PREVIEW_CHARS);
+  const isLong = content.length > PREVIEW_CHARS;
 
   return (
     <div
@@ -907,16 +907,16 @@ function OutputCard({ file, content }: { file: string; content: string; step: st
           padding: "6px 10px",
           background: "rgba(255,255,255,0.02)",
           borderBottom: "1px solid var(--border)",
-          cursor: content.length > 300 ? "pointer" : "default",
+          cursor: isLong ? "pointer" : "default",
         }}
-        onClick={() => content.length > 300 && setExpanded((e) => !e)}
+        onClick={() => isLong && setExpanded((e) => !e)}
       >
         <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-secondary)" }}>
           📄 {file}
         </span>
-        {content.length > 300 && (
-          <span style={{ fontSize: 9, color: "var(--accent-cyan)" }}>
-            {expanded ? "▲" : "▼"}
+        {isLong && (
+          <span style={{ fontSize: 10, color: "var(--accent-cyan)", fontWeight: 600 }}>
+            {expanded ? "Recolher ▲" : "Ver tudo ▼"}
           </span>
         )}
       </div>
@@ -929,13 +929,13 @@ function OutputCard({ file, content }: { file: string; content: string; step: st
           whiteSpace: "pre-wrap",
           wordBreak: "break-word",
           lineHeight: 1.6,
-          maxHeight: expanded ? 500 : 160,
-          overflowY: expanded ? "auto" : "hidden",
+          maxHeight: expanded ? 1200 : 260,
+          overflowY: "auto",
           transition: "max-height 0.2s ease",
         }}
       >
         {expanded ? content : preview}
-        {!expanded && content.length > 300 && (
+        {!expanded && isLong && (
           <span style={{ color: "var(--text-secondary)" }}>{"\n"}…</span>
         )}
       </pre>

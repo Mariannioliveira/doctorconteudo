@@ -18,6 +18,52 @@ from .checkpoint_handler import build_payload
 from . import agent_executor
 
 
+def _slugify(text: str, max_len: int = 60) -> str:
+    import re, unicodedata
+    norm = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    norm = re.sub(r"[^a-zA-Z0-9]+", "-", norm).strip("-").lower()
+    return (norm or "card")[:max_len]
+
+
+def _download_card_as_png(run_id: str) -> str | None:
+    """Convert design/card.jpg → ~/Downloads/{slug}.png. Returns the PNG path or None."""
+    import os, shutil, subprocess
+    from pathlib import Path
+    run_dir = get_run_dir(run_id)
+    card_jpg = run_dir / "design" / "card.jpg"
+    if not card_jpg.exists():
+        return None
+
+    headline = ""
+    try:
+        from .file_manager import read_artifact
+        draft = read_artifact(run_id, "v1/content-draft.md") or ""
+        import re
+        m = re.search(r"=== HEADLINE DO CARD ===\s*\n(.+)", draft)
+        if m:
+            headline = m.group(1).strip()
+    except Exception:
+        pass
+
+    slug = _slugify(headline) if headline else f"card-{run_id}"
+    downloads_dir = Path(os.path.expanduser("~/Downloads"))
+    downloads_dir.mkdir(parents=True, exist_ok=True)
+    dst = downloads_dir / f"doctorcreator-{slug}.png"
+
+    try:
+        subprocess.run(
+            ["sips", "-s", "format", "png", str(card_jpg), "--out", str(dst)],
+            check=True, capture_output=True,
+        )
+        return str(dst)
+    except Exception:
+        try:
+            shutil.copyfile(card_jpg, dst.with_suffix(".jpg"))
+            return str(dst.with_suffix(".jpg"))
+        except Exception:
+            return None
+
+
 # ─────────────────────────────────────────────
 #  Agent metadata lookup
 # ─────────────────────────────────────────────
@@ -158,15 +204,21 @@ async def run_pipeline(run_id: str, run_ctx: RunContext):
                     })
                     return
 
-                # Terminal: save design without publishing (step-07)
-                if action == "save" and step_id == "step-07":
+                # Terminal: download card as PNG (step-07)
+                if action in ("download", "save") and step_id == "step-07":
                     _update_step_status(state, step_id, "done")
                     state["status"] = "completed"
                     save_run_state(state)
+                    download_path = _download_card_as_png(run_id)
+                    msg = (
+                        f"Imagem baixada para {download_path}"
+                        if download_path
+                        else "Card salvo (não foi possível copiar para Downloads)."
+                    )
                     await run_ctx.emit("run_complete", {
                         "run_id": run_id,
                         "status": "completed",
-                        "message": "Card salvo sem publicação."
+                        "message": msg,
                     })
                     return
 
@@ -184,15 +236,60 @@ async def run_pipeline(run_id: str, run_ctx: RunContext):
                         await _run_agent_step(step_04, run_id, state, run_ctx, last_decision)
                     continue
 
-                # step-07: user wants design adjusted → re-run designer
+                # step-07: user wants design adjusted → re-run designer and ask again.
+                # Loop here until the user picks a terminal action (publish or download/save).
+                # Without this loop, control would fall through to step-08 (publish) and
+                # bypass approval — exactly what we don't want.
                 if action == "adjust_design" and step_id == "step-07":
+                    while action == "adjust_design":
+                        state["status"] = "running"
+                        save_run_state(state)
+                        await run_ctx.emit("checkpoint_resolved", {"step_id": step_id, "action": action})
+
+                        step_06 = next((s for s in steps if s["id"] == "step-06"), None)
+                        if step_06:
+                            await _run_agent_step(step_06, run_id, state, run_ctx, last_decision)
+
+                        _update_step_status(state, step_id, "waiting")
+                        state["status"] = "checkpoint"
+                        save_run_state(state)
+                        payload = build_payload(step_id, run_id)
+                        await run_ctx.emit("checkpoint", {
+                            "step_id": step_id,
+                            "step_name": step_name,
+                            **payload,
+                        })
+                        await run_ctx.checkpoint_event.wait()
+                        run_ctx.checkpoint_event.clear()
+
+                        decision = run_ctx.checkpoint_decision or {}
+                        last_decision = decision
+                        action = decision.get("action", "")
+                        save_checkpoint_decision(run_id, step_id, decision)
+
+                    # Terminal: user chose download (or save legacy)
+                    if action in ("download", "save"):
+                        _update_step_status(state, step_id, "done")
+                        state["status"] = "completed"
+                        save_run_state(state)
+                        download_path = _download_card_as_png(run_id)
+                        msg = (
+                            f"Imagem baixada para {download_path}"
+                            if download_path
+                            else "Card salvo (não foi possível copiar para Downloads)."
+                        )
+                        await run_ctx.emit("run_complete", {
+                            "run_id": run_id,
+                            "status": "completed",
+                            "message": msg,
+                        })
+                        return
+
+                    # Terminal: user chose publish — fall through to advance to step-08
                     _update_step_status(state, step_id, "done")
                     state["status"] = "running"
                     save_run_state(state)
                     await run_ctx.emit("checkpoint_resolved", {"step_id": step_id, "action": action})
-                    step_06 = next((s for s in steps if s["id"] == "step-06"), None)
-                    if step_06:
-                        await _run_agent_step(step_06, run_id, state, run_ctx, last_decision)
                     continue
 
                 _update_step_status(state, step_id, "done")

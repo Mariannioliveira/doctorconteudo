@@ -234,7 +234,8 @@ Apply this transformation consistently for every write in this step.
   - If `model_tier: fast`: use the fastest/lightest model available in the current environment.
     You know your own environment — use the lightest model you can dispatch:
     Claude Code → `model: haiku` | Antigravity → Gemini Flash | Codex → smallest available model
-  - If `model_tier: powerful` or absent/invalid: use the default model (no model override needed)
+  - If `model_tier: powerful` or absent/invalid: use **Claude Sonnet** (`model: sonnet`).
+    **NEVER use Opus in this project** — even if Opus is the session default, override to Sonnet on subagent dispatch.
 - In the Task prompt, include:
   - The full agent persona from the party CSV
   - The full agent `.agent.md` content (persona, principles, voice guidance, anti-patterns)

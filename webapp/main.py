@@ -676,4 +676,8 @@ if DASHBOARD_DIST.exists():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    # reload disabled by default — auto-reload kills any in-flight pipeline run
+    # because it restarts the whole process. Set OPENSQUAD_RELOAD=1 to opt back in
+    # when you're not running a squad.
+    reload = os.getenv("OPENSQUAD_RELOAD") == "1"
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=reload)

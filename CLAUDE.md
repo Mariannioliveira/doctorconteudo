@@ -2,6 +2,11 @@
 
 This project uses **Opensquad**, a multi-agent orchestration framework.
 
+## Modelo
+
+- **Padrão: Claude Sonnet** (configurado em `.claude/settings.json`).
+- **Não usar Opus em nenhuma circunstância** — nem em sessão principal, nem em subagents despachados pelo runner do Opensquad. Subagents marcados com `model_tier: fast` continuam usando Haiku; qualquer outro tier usa Sonnet.
+
 ## Quick Start
 
 Type `/opensquad` to open the main menu, or use any of these commands:

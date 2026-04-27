@@ -138,7 +138,9 @@ def _design_approval(run_id: str) -> dict:
     if draft:
         m = re.search(r'=== LEGENDA INSTAGRAM ===\s*\n(.*?)(?:\n===|\Z)', draft, re.DOTALL)
         if m:
-            caption = m.group(1).strip()[:800]
+            # Send the full caption so the dashboard can render it complete.
+            # Trim only at a hard ceiling that's safely above any real caption.
+            caption = m.group(1).strip()[:8000]
 
     has_design = len(slides) > 0 or bool(card_html_url)
     subtitle = "Card gerado — pronto para publicar" if has_design else "Aguardando geração do card..."
@@ -154,6 +156,6 @@ def _design_approval(run_id: str) -> dict:
         "actions": [
             {"action": "publish", "label": "Publicar agora", "style": "primary"},
             {"action": "adjust_design", "label": "Ajustar design", "style": "secondary"},
-            {"action": "save", "label": "Salvar sem publicar", "style": "ghost"},
+            {"action": "download", "label": "Baixar imagem", "style": "ghost"},
         ]
     }

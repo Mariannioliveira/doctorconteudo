@@ -234,10 +234,11 @@ def _get_output_instructions(step_id: str) -> str:
 # ─────────────────────────────────────────────
 
 # Model mapping by agent model_tier
+# IMPORTANT: Opus is forbidden in this project. "powerful" uses Sonnet.
 _MODEL_MAP = {
     "fast": "claude-haiku-4-5-20251001",
     "standard": "claude-sonnet-4-6",
-    "powerful": "claude-opus-4-6",
+    "powerful": "claude-sonnet-4-6",
 }
 _DEFAULT_MODEL = "claude-sonnet-4-6"
 
@@ -322,16 +323,30 @@ def _save_output(step_id: str, run_id: str, content: str, agent_id: str):
 
 def _patch_html_paths(html: str, run_id: str) -> str:
     """
-    Replace relative logo paths with absolute file:// URLs so Playwright
-    can load the logo regardless of how deep the run directory is.
+    Copy the cropped logo into the run's design folder and rewrite any
+    logo reference in the HTML to point to that local file.
+    Avoids file:// absolute paths because the project root contains a space
+    ("conteudo interno") which breaks Chromium URL resolution.
     """
     import re as _re
-    logo_abs = (PROJECT_ROOT / "_opensquad" / "assets" / "logo-doctorcreator.png").resolve()
-    logo_url = f"file://{logo_abs}"
-    # Replace any path ending in logo-doctorcreator.png (relative or absolute)
+    import shutil as _shutil
+    src_logo = PROJECT_ROOT / "_opensquad" / "assets" / "logo-doctorcreator-cropped.png"
+    if not src_logo.exists():
+        # Fallback to the original (uncropped) file if the cropped version is missing
+        src_logo = PROJECT_ROOT / "_opensquad" / "assets" / "logo-doctorcreator.png"
+
+    run_dir = get_run_dir(run_id)
+    dst_logo = run_dir / "design" / "logo-doctorcreator.png"
+    dst_logo.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        _shutil.copyfile(src_logo, dst_logo)
+    except Exception as e:
+        print(f"[designer] failed to copy logo: {e}")
+
+    # Rewrite any reference (relative or absolute) to logo-doctorcreator*.png
     html = _re.sub(
-        r'["\']([^"\']*logo-doctorcreator\.png)["\']',
-        f'"{logo_url}"',
+        r'["\']([^"\']*logo-doctorcreator[^"\']*\.png)["\']',
+        '"./logo-doctorcreator.png"',
         html,
     )
     return html

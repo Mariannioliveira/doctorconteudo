@@ -118,12 +118,42 @@ export const useSquadStore = create<SquadStore>((set, get) => ({
     })),
 
   startSquad: async (squad: string) => {
+    // Optimistic state — flip UI immediately, WS broadcast will hydrate with real status
+    const info = get().squads.get(squad);
+    if (info) {
+      const optimistic: SquadState = {
+        squad,
+        status: "running",
+        step: { current: 0, total: 0, label: "Iniciando..." },
+        agents: info.agents.map((a, i) => ({
+          id: a.id,
+          name: a.name,
+          icon: a.icon,
+          status: "idle",
+          deliverTo: null,
+          desk: { col: (i % 3) + 1, row: Math.floor(i / 3) + 1 },
+        })),
+        handoff: null,
+        startedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      get().setSquadActive(squad, optimistic);
+    }
+
     try {
       const res = await fetch(`/api/squads/${squad}/run`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
 
       if (res.status === 409) {
-        // Already running — load pending state and reconnect
+        // Already running — fetch real state to hydrate, then load pending checkpoint
+        try {
+          const stateRes = await fetch(`/api/squads/${squad}`);
+          if (stateRes.ok) {
+            const sq = await stateRes.json();
+            if (sq?.state) get().setSquadActive(squad, sq.state);
+          }
+        } catch { /* keep optimistic state */ }
+
         get().addMessage(squad, {
           id: nextId(),
           type: "system",
@@ -131,7 +161,6 @@ export const useSquadStore = create<SquadStore>((set, get) => ({
           variant: "info",
           timestamp: new Date().toISOString(),
         });
-        // Fetch pending checkpoint if any
         const pendingRes = await fetch(`/api/squads/${squad}/pending`);
         if (pendingRes.ok) {
           const pending = await pendingRes.json();
@@ -151,7 +180,11 @@ export const useSquadStore = create<SquadStore>((set, get) => ({
         return { run_id: "existing" };
       }
 
-      if (!res.ok) return { error: data.error ?? "Erro ao iniciar" };
+      if (!res.ok) {
+        // Roll back optimistic state on failure
+        get().setSquadInactive(squad);
+        return { error: data.error ?? "Erro ao iniciar" };
+      }
 
       get().addMessage(squad, {
         id: nextId(),
@@ -163,11 +196,30 @@ export const useSquadStore = create<SquadStore>((set, get) => ({
 
       return { run_id: data.run_id };
     } catch (e) {
+      get().setSquadInactive(squad);
       return { error: String(e) };
     }
   },
 
   stopSquad: async (squad: string) => {
+    // Optimistic transition — show all agents as "idle" (parando) immediately
+    const current = get().activeStates.get(squad);
+    if (current) {
+      get().updateSquadState(squad, {
+        ...current,
+        status: "idle",
+        agents: current.agents.map((a) => ({ ...a, status: "idle" })),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    get().addMessage(squad, {
+      id: nextId(),
+      type: "system",
+      content: "Parando agentes...",
+      variant: "warning",
+      timestamp: new Date().toISOString(),
+    });
+
     try {
       await fetch(`/api/squads/${squad}/stop`, { method: "POST" });
       get().addMessage(squad, {

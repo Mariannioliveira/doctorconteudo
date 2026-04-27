@@ -88,15 +88,22 @@ def artifact_exists(run_id: str, rel_path: str) -> bool:
 
 
 def list_design_files(run_id: str) -> list[str]:
-    """Returns URL paths to design images (jpg/png), served via /squad-output/."""
+    """Returns URL paths to design *artworks* (the actual card outputs), served via /squad-output/.
+
+    Skips internal asset copies like the brand logo, which we duplicate into the design
+    folder only so card.html can reference it as a same-folder relative path.
+    """
     design_dir = get_run_dir(run_id) / "design"
     if not design_dir.exists():
         return []
     squad_name = SQUAD_ROOT.name
+    INTERNAL_ASSET_NAMES = {"logo-doctorcreator.png"}
     return sorted([
         f"/squad-output/{squad_name}/output/{run_id}/design/{f.name}"
         for f in design_dir.iterdir()
         if f.suffix.lower() in (".jpg", ".jpeg", ".png")
+        and f.name not in INTERNAL_ASSET_NAMES
+        and not f.name.startswith("img-bg")
     ])
 
 

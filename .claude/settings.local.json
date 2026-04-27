@@ -1,11 +1,13 @@
 {
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.chiefhealthcareexecutive.com)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_console_messages"
+    ]
+  },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "playwright"
-  ],
-  "permissions": {
-    "allow": [
-      "WebFetch(domain:www.chiefhealthcareexecutive.com)"
-    ]
-  }
+  ]
 }

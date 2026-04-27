@@ -3,6 +3,7 @@ node_modules/
 *.log
 *.DS_Store
 squads/*/output/
+squads/*/.stop_signal
 _opensquad/_browser_profile/
 _opensquad/logs/
 webapp/.venv/
@@ -11,3 +12,8 @@ webapp/**/__pycache__/
 *.pyc
 dashboard/dist/
 tsconfig.tsbuildinfo
+
+# Local dev artifacts
+.playwright-mcp/
+ui-*.png
+package-lock.json

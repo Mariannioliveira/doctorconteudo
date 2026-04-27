@@ -5,8 +5,9 @@ title: "Designer de Card Único para Instagram Feed"
 icon: "🎨"
 squad: "conteudo-social-medicos"
 execution: inline
-model_tier: standard
-skills: []
+model_tier: powerful
+skills:
+  - web_search
 ---
 
 ## Persona
@@ -40,12 +41,13 @@ Typography:
 Spacing:
   Lateral margin: 64px
   Headline bottom padding: 48px above footer bar
-  Footer bar height: 110px
+  Footer bar height: 150px
 
 Logo:
-  Arquivo: _opensquad/assets/logo-doctorcreator.png
+  Arquivo: _opensquad/assets/logo-doctorcreator-cropped.png  (versão recortada — usar SEMPRE esta, não a original)
   Posição: footer bar, alinhado à esquerda (margin-left: 48px)
-  Altura: 52px (largura proporcional automática)
+  Altura: 110px (largura proporcional automática — ~324px)
+  Renderização: copiar fisicamente para output/{run-id}/design/logo-doctorcreator.png e referenciar como ./logo-doctorcreator.png no HTML (caminhos absolutos file:// quebram pelo espaço em "conteudo interno")
 
 Footer CTA:
   Texto: "SAIBA MAIS NA LEGENDA ↓"
@@ -62,7 +64,7 @@ Footer CTA:
 4. **Gradiente de contraste obrigatório.** O overlay escuro na base garante legibilidade da headline sobre qualquer foto.
 5. **Palavras de acento em #92adff.** As palavras marcadas pelo redator como destaque recebem `color: #92adff` inline — o restante da headline é branco.
 6. **HTML auto-contido.** CSS inline, sem CDN externo, sem JavaScript. Única exceção: Google Fonts via `@import`.
-7. **Logo sempre presente.** O arquivo `_opensquad/assets/logo-doctorcreator.png` deve aparecer no footer em todo card gerado.
+7. **Logo sempre presente.** O arquivo `_opensquad/assets/logo-doctorcreator-cropped.png` deve ser copiado para a pasta de design e aparecer no footer em todo card gerado.
 
 ## Operational Framework
 
@@ -89,12 +91,12 @@ O card tem 3 camadas:
     │   │   └── palavras de acento: <span style="color:#92adff">palavra</span>
     │   └── <p> Subtítulo Montserrat 500, 34px, branco, centralizado (se houver)
     │
-    └── FOOTER BAR (width: 100%, height: 110px, background: rgba(0,0,0,0.88))
-        ├── ESQUERDA: <img src="../../../_opensquad/assets/logo-doctorcreator.png" height="52">
+    └── FOOTER BAR (width: 100%, height: 150px, background: rgba(0,0,0,0.88))
+        ├── ESQUERDA: <img src="./logo-doctorcreator.png" height="110">
         └── DIREITA: "SAIBA MAIS NA LEGENDA ↓" Montserrat 700, 22px, #FFF, uppercase, letter-spacing 0.12em
 ```
 
-> **Nota sobre o caminho da logo:** Use sempre exatamente `../../../../../_opensquad/assets/logo-doctorcreator.png` (5 níveis acima de `design/card.html`). O sistema substitui automaticamente por caminho absoluto no momento do render.
+> **Nota sobre o caminho da logo:** Antes de renderizar, copiar `_opensquad/assets/logo-doctorcreator-cropped.png` para `output/{run-id}/design/logo-doctorcreator.png` e referenciar no HTML como `./logo-doctorcreator.png` (mesma pasta do `card.html`). Não usar paths absolutos `file://` — o espaço em "conteudo interno" quebra o load no Chromium.
 
 ### 3. Escolher / descrever a foto de fundo
 
@@ -128,8 +130,8 @@ Estrutura base:
   .headline-block { padding: 0 64px 48px; text-align: center; }
   h1 { font-size: 76px; font-weight: 800; color: #FFFFFF; line-height: 1.15; }
   .subtitle { font-size: 34px; font-weight: 500; color: rgba(255,255,255,0.88); margin-top: 16px; }
-  .footer { width: 100%; height: 110px; background: rgba(0,0,0,0.88); display: flex; align-items: center; justify-content: space-between; padding: 0 48px; }
-  .footer img { height: 52px; width: auto; }
+  .footer { width: 100%; height: 150px; background: rgba(0,0,0,0.88); display: flex; align-items: center; justify-content: space-between; padding: 0 48px; }
+  .footer img { height: 110px; width: auto; }
   .footer-cta { font-size: 22px; font-weight: 700; color: #FFFFFF; letter-spacing: 0.12em; text-transform: uppercase; }
   .accent { color: #92adff; }
 </style>
@@ -143,7 +145,7 @@ Estrutura base:
       <!-- <p class="subtitle">[SUBTÍTULO SE HOUVER]</p> -->
     </div>
     <div class="footer">
-      <img src="../../../../../_opensquad/assets/logo-doctorcreator.png" alt="DoctorCreator">
+      <img src="./logo-doctorcreator.png" alt="DoctorCreator">
       <span class="footer-cta">SAIBA MAIS NA LEGENDA ↓</span>
     </div>
   </div>
@@ -164,7 +166,7 @@ DESIGN SYSTEM APLICADO:
 - Fonte: Montserrat 800 (headline) / 700 (footer CTA) / 500 (subtítulo)
 - Cor de acento: #92adff em: [palavras destacadas]
 - Foto de fundo: [descrição]
-- Logo: _opensquad/assets/logo-doctorcreator.png
+- Logo: _opensquad/assets/logo-doctorcreator-cropped.png (copiada localmente para design/logo-doctorcreator.png)
 
 Pronto para aprovação e publicação.
 ```
@@ -183,12 +185,15 @@ Pronto para aprovação e publicação.
 9. Incluir links externos no HTML (exceto Google Fonts @import)
 10. Usar posicionamento absoluto para layout principal (usar Flexbox)
 11. Incluir texto de raciocínio ou explicação — retornar APENAS o HTML puro
+12. **NUNCA desenhar "cenas" em CSS** — nada de `div`s posicionados simulando médico, tripé, ring light, paredes, jaleco, lapelas, celular ou qualquer outro elemento decorativo. Apenas a foto de fundo (uma `<img class="bg">`) + overlay + conteúdo. Sem fallback ilustrado.
+13. **NUNCA usar JavaScript no HTML** — sem `onerror`, sem `onload`, sem `<script>`. Se a imagem não carregar, o navegador mostra área vazia (e o overlay escuro garante leitura) — **isso é aceitável**, não tente "consertar" com fallback.
+14. **NUNCA inserir camada de fallback decorativo** (`.bg-fallback`, `.scene`, `.scene-figure`, etc). Se quiser uma cor de fundo enquanto a imagem carrega, use apenas `body { background: #0a0a0a }` — nada além disso.
 
 **Sempre fazer:**
 1. Seguir o design system fixo sem variações
 2. Verificar renderização via Playwright antes de entregar
 3. Usar `object-fit: cover` na foto de fundo
-4. Garantir que o caminho da logo está correto: `_opensquad/assets/logo-doctorcreator.png`
+4. Antes de renderizar: copiar `_opensquad/assets/logo-doctorcreator-cropped.png` para `output/{run-id}/design/logo-doctorcreator.png` e usar `./logo-doctorcreator.png` no `src` da `<img>`. Nunca referenciar via `file://` ou caminho que atravesse a pasta "conteudo interno"
 
 ## Quality Criteria
 
@@ -198,8 +203,8 @@ Pronto para aprovação e publicação.
 - [ ] Palavras de destaque com `color: #92adff` inline
 - [ ] Foto de fundo com `object-fit: cover`
 - [ ] Gradiente overlay: `linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 50%, transparent 100%)`
-- [ ] Footer bar: `rgba(0,0,0,0.88)`, height 110px
-- [ ] Logo presente no footer: `_opensquad/assets/logo-doctorcreator.png`, height 52px
+- [ ] Footer bar: `rgba(0,0,0,0.88)`, height 150px
+- [ ] Logo presente no footer: `./logo-doctorcreator.png` (cópia local da versão cropped), height 110px
 - [ ] "SAIBA MAIS NA LEGENDA ↓" presente no footer, direita, Montserrat 700, uppercase
 - [ ] HTML auto-contido (sem dependências externas além de Google Fonts)
 - [ ] HTML retornado começa com `<!DOCTYPE html>` e termina com `</html>`
