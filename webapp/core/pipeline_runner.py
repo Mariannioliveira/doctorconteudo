@@ -12,7 +12,7 @@ from .config import SQUAD_ROOT, PROJECT_ROOT
 from .file_manager import (
     load_pipeline_yaml, load_squad_yaml,
     save_run_state, save_checkpoint_decision,
-    now_iso, get_run_dir
+    now_iso, get_run_dir, read_artifact
 )
 from .checkpoint_handler import build_payload
 from . import agent_executor
@@ -130,10 +130,38 @@ def _update_step_status(state: dict, step_id: str, status: str):
 #  Main pipeline coroutine
 # ─────────────────────────────────────────────
 
-async def run_pipeline(run_id: str, run_ctx: RunContext):
+async def run_pipeline(
+    run_id: str, run_ctx: RunContext,
+    reuse_from: str | None = None,
+    selected_story: dict | None = None,
+):
+    import shutil as _shutil
     pipeline = load_pipeline_yaml()
     squad_yaml = load_squad_yaml()
     state = _build_initial_state(run_id, pipeline, squad_yaml)
+
+    if reuse_from:
+        # Copy search artifacts from a previous run and mark early steps as done.
+        # The pipeline will skip straight to step-03 (Carlos Cópia).
+        src_dir = get_run_dir(reuse_from)
+        run_dir = get_run_dir(run_id)
+        (run_dir / "v1").mkdir(parents=True, exist_ok=True)
+        src_stories = src_dir / "v1" / "ranked-stories.yaml"
+        if src_stories.exists():
+            _shutil.copyfile(src_stories, run_dir / "v1" / "ranked-stories.yaml")
+        src_period = src_dir / "research-period.json"
+        if src_period.exists():
+            _shutil.copyfile(src_period, run_dir / "research-period.json")
+        if selected_story:
+            (run_dir / "selected-story.yaml").write_text(
+                yaml.dump(selected_story, allow_unicode=True, default_flow_style=False),
+                encoding="utf-8",
+            )
+        # Mark steps 00, 01, 02 as done so the loop skips them
+        for skip_id in ("step-00", "step-01", "step-02"):
+            _update_step_status(state, skip_id, "done")
+        state["status"] = "running"
+
     save_run_state(state)
 
     last_decision: dict | None = None
@@ -154,6 +182,11 @@ async def run_pipeline(run_id: str, run_ctx: RunContext):
             step_id = step["id"]
             step_type = step.get("type", "agent")
             step_name = step.get("name", step_id)
+
+            # Skip steps already marked done (e.g. when reusing a previous search)
+            step_state = next((s for s in state["steps"] if s["id"] == step_id), None)
+            if step_state and step_state.get("status") == "done":
+                continue
 
             _update_step_status(state, step_id, "running")
             save_run_state(state)
@@ -204,23 +237,36 @@ async def run_pipeline(run_id: str, run_ctx: RunContext):
                     })
                     return
 
-                # Terminal: download card as PNG (step-07)
+                # Terminal: download card via browser (step-07)
                 if action in ("download", "save") and step_id == "step-07":
                     _update_step_status(state, step_id, "done")
                     state["status"] = "completed"
                     save_run_state(state)
-                    download_path = _download_card_as_png(run_id)
-                    msg = (
-                        f"Imagem baixada para {download_path}"
-                        if download_path
-                        else "Card salvo (não foi possível copiar para Downloads)."
-                    )
                     await run_ctx.emit("run_complete", {
                         "run_id": run_id,
                         "status": "completed",
-                        "message": msg,
+                        "message": "Card pronto para download.",
                     })
                     return
+
+                # step-05: user picks a different story → save new story, re-run redator + revisor
+                if action == "rewrite_copy" and step_id == "step-05":
+                    story_value = decision.get("value")
+                    if story_value and isinstance(story_value, dict):
+                        run_dir = get_run_dir(run_id)
+                        story_yaml = yaml.dump(story_value, allow_unicode=True, default_flow_style=False)
+                        (run_dir / "selected-story.yaml").write_text(story_yaml, encoding="utf-8")
+                    _update_step_status(state, step_id, "done")
+                    state["status"] = "running"
+                    save_run_state(state)
+                    await run_ctx.emit("checkpoint_resolved", {"step_id": step_id, "action": action})
+                    step_03 = next((s for s in steps if s["id"] == "step-03"), None)
+                    if step_03:
+                        await _run_agent_step(step_03, run_id, state, run_ctx, last_decision)
+                    step_04 = next((s for s in steps if s["id"] == "step-04"), None)
+                    if step_04:
+                        await _run_agent_step(step_04, run_id, state, run_ctx, last_decision)
+                    continue
 
                 # step-05: user requests content changes → re-run redator + revisor
                 if action == "request_changes" and step_id == "step-05":
@@ -267,21 +313,15 @@ async def run_pipeline(run_id: str, run_ctx: RunContext):
                         action = decision.get("action", "")
                         save_checkpoint_decision(run_id, step_id, decision)
 
-                    # Terminal: user chose download (or save legacy)
+                    # Terminal: user chose download via browser
                     if action in ("download", "save"):
                         _update_step_status(state, step_id, "done")
                         state["status"] = "completed"
                         save_run_state(state)
-                        download_path = _download_card_as_png(run_id)
-                        msg = (
-                            f"Imagem baixada para {download_path}"
-                            if download_path
-                            else "Card salvo (não foi possível copiar para Downloads)."
-                        )
                         await run_ctx.emit("run_complete", {
                             "run_id": run_id,
                             "status": "completed",
-                            "message": msg,
+                            "message": "Card pronto para download.",
                         })
                         return
 
@@ -371,10 +411,25 @@ async def _run_agent_step(
     _update_step_status(state, step_id, "done")
     save_run_state(state)
 
+    from .config import STEP_OUTPUT_FILES
+    step_outputs = []
+    for rel_path in STEP_OUTPUT_FILES.get(step_id, []):
+        output_path = get_run_dir(run_id) / rel_path
+        if output_path.exists():
+            try:
+                step_outputs.append({
+                    "file": rel_path,
+                    "content": output_path.read_text(encoding="utf-8")[:4000],
+                    "step": step_id,
+                })
+            except Exception:
+                pass
+
     await run_ctx.emit("step_done", {
         "step_id": step_id,
         "step_name": step_name,
         "agent_id": agent_id,
         "agent_name": agent_info["name"],
         "agent_icon": agent_info["icon"],
+        "outputs": step_outputs,
     })

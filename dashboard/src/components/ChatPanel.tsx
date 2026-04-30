@@ -39,12 +39,15 @@ export function ChatPanel() {
   // Connect SSE stream
   useSquadStream(selectedSquad);
 
-  // Always scroll to bottom so the checkpoint action footer (Confirmar/etc.) stays visible.
-  // Scrolling to the checkpoint's top hid the action buttons whenever prior agent messages
-  // pushed the card past the viewport — bug only "fixed" itself on reload, when those
-  // ephemeral agent messages were gone.
+  // When a pending checkpoint is the last message, scroll to its top so the user sees
+  // the full story/option list from the beginning. For all other messages, scroll to bottom.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const last = messages[messages.length - 1];
+    if (last?.type === "checkpoint" && !(last as Extract<typeof last, { type: "checkpoint" }>).resolved) {
+      checkpointRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
   }, [messages.length]);
 
   const isRunning = activeState?.status === "running" || activeState?.status === "checkpoint";
@@ -202,6 +205,11 @@ export function ChatPanel() {
           );
         })}
 
+        {/* Reuse stories panel — visible when run is concluded */}
+        {!isRunning && messages.length > 0 && (
+          <ReuseStoriesPanel squad={selectedSquad} messages={messages} onRerun={handleStart} />
+        )}
+
         {/* Live token stream indicator */}
         {isRunning && !hasCheckpointPending && activeState?.agents?.find((a) => a.status === "working") && (
           <TypingIndicator agents={activeState.agents.filter((a) => a.status === "working")} />
@@ -236,6 +244,125 @@ export function ChatPanel() {
     </div>
   );
 }
+
+// ─────────────────────────────────────────────
+// Reuse stories panel (after run concludes)
+// ─────────────────────────────────────────────
+
+function ReuseStoriesPanel({
+  squad,
+  messages,
+  onRerun,
+}: {
+  squad: string;
+  messages: ChatMessage[];
+  onRerun: () => void;
+}) {
+  const [stories, setStories] = useState<CheckpointStory[]>([]);
+  const [runId, setRunId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [selectedStory, setSelectedStory] = useState<CheckpointStory | null>(null);
+  const [open, setOpen] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Resolve runId: first try messages, then fall back to the most recent backend run
+  useEffect(() => {
+    // Try to find "Pipeline iniciado — run-XXXX" in chat messages
+    for (const m of messages) {
+      if (m.type === "system") {
+        const match = m.content.match(/run-[\d-]+/);
+        if (match) { setRunId(match[0]); return; }
+      }
+    }
+    // Fallback: ask backend for the most recent run
+    fetch(`/api/squads/${squad}/runs`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((runs: { run_id: string }[] | null) => {
+        if (runs && runs.length > 0) setRunId(runs[0].run_id);
+      })
+      .catch(() => null);
+  }, [squad, messages]);
+
+  // Fetch stories when panel opens
+  useEffect(() => {
+    if (!open || !runId || stories.length > 0) return;
+    setFetching(true);
+    fetch(`/api/squads/${squad}/runs/${runId}/stories`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.stories?.length) setStories(d.stories); })
+      .catch(() => null)
+      .finally(() => setFetching(false));
+  }, [open, runId, squad, stories.length]);
+
+  const handleRerun = async () => {
+    if (!selectedStory || !runId) return;
+    setLoading(true);
+    try {
+      await fetch(`/api/squads/${squad}/rerun`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source_run_id: runId, selected_story: selectedStory }),
+      });
+      setOpen(false);
+      onRerun();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ margin: "12px 16px", borderRadius: 12, border: "1px solid rgba(0,212,255,0.25)", background: "rgba(0,212,255,0.04)", overflow: "hidden" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{ width: "100%", padding: "10px 14px", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, fontFamily: "inherit", color: "var(--accent-cyan)", fontSize: 12, fontWeight: 700, textAlign: "left" }}
+      >
+        <span>🔄</span>
+        <span>Usar outra notícia desta pesquisa</span>
+        <span style={{ marginLeft: "auto", fontSize: 10 }}>{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div style={{ borderTop: "1px solid rgba(0,212,255,0.15)", padding: "12px 14px" }}>
+          {fetching || (stories.length === 0 && runId) ? (
+            <div style={{ fontSize: 12, color: "var(--text-secondary)", padding: "8px 0" }}>
+              Carregando notícias...
+            </div>
+          ) : stories.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--text-secondary)", padding: "8px 0" }}>
+              Nenhuma notícia encontrada. Inicie um novo run para buscar.
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 8 }}>
+                Escolha uma notícia — Carlos Cópia reescreve sem refazer a busca. Verifique o link antes de usar:
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {stories.map((story, i) => (
+                  <StoryCard
+                    key={i}
+                    story={story}
+                    index={i}
+                    selected={selected === String(i)}
+                    onClick={() => { setSelected(String(i)); setSelectedStory(story); }}
+                  />
+                ))}
+              </div>
+              <button
+                style={{ ...checkpointBtnStyle("primary"), marginTop: 12, opacity: (!selected || loading) ? 0.5 : 1 }}
+                disabled={!selected || loading}
+                onClick={handleRerun}
+              >
+                {loading ? "Iniciando..." : "Reescrever copy com esta notícia"}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 // ─────────────────────────────────────────────
 // Message renderer
@@ -354,8 +481,6 @@ function AgentStartMessage({
               color: "var(--text-secondary)",
               lineHeight: 1.7,
               marginTop: 4,
-              maxHeight: 300,
-              overflowY: "auto",
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
             }}
@@ -381,10 +506,15 @@ function AgentOutputMessage({
   msg: Extract<ChatMessage, { type: "agent_output" }>;
   squad: string;
 }) {
-  const [output, setOutput] = useState<{ file: string; content: string; step: string }[]>([]);
+  const [output, setOutput] = useState<{ file: string; content: string; step: string }[]>(msg.outputs ?? []);
 
   useEffect(() => {
-    // Fetch the agent's latest output
+    // Use outputs embedded in SSE event when available (avoids race condition on first load)
+    if (msg.outputs && msg.outputs.length > 0) {
+      setOutput(msg.outputs);
+      return;
+    }
+    // Fallback fetch for reconnect scenarios where outputs weren't embedded
     fetch(`/api/squads/${squad}/agents/${msg.agent.id}`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => d?.latestOutputs && setOutput(d.latestOutputs))
@@ -425,6 +555,7 @@ function CheckpointMessage({
   const submitCheckpoint = useSquadStore((s) => s.submitCheckpoint);
   const [feedback, setFeedback] = useState("");
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showStorySelector, setShowStorySelector] = useState(false);
   // selected: string key (index or hook letter)
   // selectedValue: the actual payload to send to backend
   const [selected, setSelected] = useState<string | null>(null);
@@ -441,6 +572,20 @@ function CheckpointMessage({
     if (hasFeedback) {
       setShowFeedback(true);
       return;
+    }
+    // Show story selector inline for rewrite_copy
+    if (action === "rewrite_copy") {
+      setShowStorySelector(true);
+      return;
+    }
+    // Browser download for design_approval — trigger file download then end pipeline
+    if (action === "download" && payload.type === "design_approval" && payload.run_id) {
+      const link = document.createElement("a");
+      link.href = `/api/squads/${squad}/runs/${payload.run_id}/card/download`;
+      link.download = "doctorcreator-card.jpg";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
     await submitCheckpoint(squad, msg.stepId, action, selectedValue ?? selected, undefined);
   };
@@ -462,7 +607,6 @@ function CheckpointMessage({
         background: msg.resolved
           ? "rgba(34,197,94,0.05)"
           : "rgba(251,191,36,0.06)",
-        overflow: "hidden",
       }}
     >
       {/* Checkpoint header */}
@@ -511,12 +655,29 @@ function CheckpointMessage({
       {!msg.resolved && (
         <div style={{ display: "flex", flexDirection: "column" }}>
           {/* Scrollable body */}
-          <div style={{ padding: "12px 16px", overflowY: "auto", maxHeight: 360 }}>
-            <CheckpointBody
-              payload={payload}
-              selected={selected}
-              onSelect={handleSelect}
-            />
+          <div style={{ padding: "12px 16px" }}>
+            {showStorySelector && payload.stories && payload.stories.length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>
+                  Escolha outra notícia para reescrever o copy:
+                </div>
+                {payload.stories.map((story, i) => (
+                  <StoryCard
+                    key={i}
+                    story={story}
+                    index={i}
+                    selected={selected === String(i)}
+                    onClick={() => handleSelect(String(i), story)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <CheckpointBody
+                payload={payload}
+                selected={selected}
+                onSelect={handleSelect}
+              />
+            )}
 
             {/* Feedback input */}
             {showFeedback && (
@@ -538,7 +699,7 @@ function CheckpointMessage({
             )}
           </div>
 
-          {/* Action buttons — always visible at bottom */}
+          {/* Action buttons */}
           <div
             style={{
               padding: "10px 16px",
@@ -549,7 +710,23 @@ function CheckpointMessage({
               gap: 8,
             }}
           >
-            {showFeedback ? (
+            {showStorySelector ? (
+              <>
+                <button
+                  style={checkpointBtnStyle("primary")}
+                  onClick={() => submitCheckpoint(squad, msg.stepId, "rewrite_copy", selectedValue ?? selected, undefined)}
+                  disabled={!selected}
+                >
+                  Reescrever com esta notícia
+                </button>
+                <button
+                  style={checkpointBtnStyle("ghost")}
+                  onClick={() => { setShowStorySelector(false); setSelected(null); setSelectedValue(null); }}
+                >
+                  Cancelar
+                </button>
+              </>
+            ) : showFeedback ? (
               <>
                 <button
                   style={checkpointBtnStyle("primary")}
@@ -606,6 +783,53 @@ function stripCites(text: string | undefined): string {
 }
 
 // ─────────────────────────────────────────────
+// Content review body with expandable draft
+// ─────────────────────────────────────────────
+
+function ContentReviewBody({ payload }: { payload: CheckpointPayload }) {
+  const [draftExpanded, setDraftExpanded] = useState(false);
+  const PREVIEW_CHARS = 800;
+  const draft = payload.draft_md ?? "";
+  const isLong = draft.length > PREVIEW_CHARS;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {payload.verdict && (
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 20, background: "rgba(0,212,255,0.1)", color: "var(--accent-cyan)", fontSize: 12, fontWeight: 600 }}>
+          🔍 Vera Veredito: {payload.verdict}
+        </div>
+      )}
+      {draft && (
+        <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+          <div
+            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 10px", background: "rgba(255,255,255,0.02)", borderBottom: "1px solid var(--border)", cursor: isLong ? "pointer" : "default" }}
+            onClick={() => isLong && setDraftExpanded((e) => !e)}
+          >
+            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-secondary)" }}>📄 Conteúdo gerado</span>
+            {isLong && <span style={{ fontSize: 10, color: "var(--accent-cyan)", fontWeight: 600 }}>{draftExpanded ? "Recolher ▲" : "Ver tudo ▼"}</span>}
+          </div>
+          <pre style={{ ...previewStyle }}>
+            {draftExpanded ? draft : draft.slice(0, PREVIEW_CHARS)}
+            {!draftExpanded && isLong && <span style={{ color: "var(--text-secondary)" }}>{"\n"}…</span>}
+          </pre>
+        </div>
+      )}
+      {payload.review_md && (
+        <details>
+          <summary style={{ fontSize: 11, color: "var(--text-secondary)", cursor: "pointer", padding: "4px 0", userSelect: "none" }}>
+            Ver revisão completa ▾
+          </summary>
+          <pre style={{ ...previewStyle, marginTop: 6 }}>
+            {payload.review_md}
+          </pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
+
+// ─────────────────────────────────────────────
 // Checkpoint body — renders per type
 // ─────────────────────────────────────────────
 
@@ -655,43 +879,7 @@ function CheckpointBody({
       );
 
     case "content_review":
-      return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {payload.verdict && (
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "4px 12px",
-                borderRadius: 20,
-                background: "rgba(0,212,255,0.1)",
-                color: "var(--accent-cyan)",
-                fontSize: 12,
-                fontWeight: 600,
-              }}
-            >
-              🔍 Vera Veredito: {payload.verdict}
-            </div>
-          )}
-          {payload.draft_md && (
-            <pre style={{ ...previewStyle, maxHeight: 300, overflowY: "auto" }}>
-              {payload.draft_md.slice(0, 3000)}
-              {payload.draft_md.length > 3000 && "\n…"}
-            </pre>
-          )}
-          {payload.review_md && (
-            <details>
-              <summary style={{ fontSize: 11, color: "var(--text-secondary)", cursor: "pointer", padding: "4px 0", userSelect: "none" }}>
-                Ver revisão completa ▾
-              </summary>
-              <pre style={{ ...previewStyle, maxHeight: 200, marginTop: 6 }}>
-                {payload.review_md.slice(0, 1500)}
-              </pre>
-            </details>
-          )}
-        </div>
-      );
+      return <ContentReviewBody payload={payload} />;
 
     case "design_approval":
       return (
@@ -754,7 +942,7 @@ function CheckpointBody({
               <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
                 Legenda do post
               </div>
-              <pre style={{ ...previewStyle, maxHeight: 160, overflowY: "auto", fontSize: 11 }}>
+              <pre style={{ ...previewStyle, fontSize: 11 }}>
                 {payload.caption}
               </pre>
             </div>
@@ -878,6 +1066,17 @@ function StoryCard({
               {story.source}
             </div>
           )}
+          {story.url && (
+            <a
+              href={story.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: 10, color: "var(--accent-cyan)", marginTop: 2, display: "block", textDecoration: "none" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              🔗 Verificar fonte
+            </a>
+          )}
         </div>
       </div>
     </button>
@@ -929,9 +1128,7 @@ function OutputCard({ file, content }: { file: string; content: string; step: st
           whiteSpace: "pre-wrap",
           wordBreak: "break-word",
           lineHeight: 1.6,
-          maxHeight: expanded ? 1200 : 260,
-          overflowY: "auto",
-          transition: "max-height 0.2s ease",
+          transition: "none",
         }}
       >
         {expanded ? content : preview}
@@ -1244,6 +1441,4 @@ const previewStyle: React.CSSProperties = {
   whiteSpace: "pre-wrap",
   wordBreak: "break-word",
   lineHeight: 1.6,
-  maxHeight: 280,
-  overflowY: "auto",
 };

@@ -321,6 +321,38 @@ def _save_output(step_id: str, run_id: str, content: str, agent_id: str):
             write_artifact(run_id, rel_path, content)
 
 
+_GRADIENT = "linear-gradient(to top, rgba(0,0,0,0.97) 0%, rgba(0,0,0,0.88) 30%, rgba(0,0,0,0.60) 55%, rgba(0,0,0,0.15) 80%, rgba(0,0,0,0.0) 100%)"
+_OVERLAY_CSS = f"  .overlay {{ position: absolute; inset: 0; z-index: 1; background: {_GRADIENT}; }}"
+_OVERLAY_DIV = '<div class="overlay"></div>'
+
+
+def _ensure_gradient_overlay(html: str) -> str:
+    """Enforce the canonical strong gradient overlay — always replace any existing .overlay CSS."""
+    import re as _re
+
+    # Always replace the .overlay CSS rule with the authoritative strong gradient
+    if ".overlay" in html:
+        html = _re.sub(
+            r'\.overlay\s*\{[^}]*\}',
+            f'.overlay {{ position: absolute; inset: 0; z-index: 1; background: {_GRADIENT}; }}',
+            html,
+        )
+    else:
+        html = html.replace("</style>", f"\n{_OVERLAY_CSS}\n</style>", 1)
+
+    # Ensure the overlay div is present in the body
+    if _OVERLAY_DIV not in html:
+        html = _re.sub(
+            r'(<img[^>]+class=["\'][^"\']*\bbg\b[^"\']*["\'][^>]*>)',
+            r'\1\n  ' + _OVERLAY_DIV,
+            html,
+        )
+        if _OVERLAY_DIV not in html:
+            html = _re.sub(r'(<body[^>]*>)', r'\1\n  ' + _OVERLAY_DIV, html, count=1)
+
+    return html
+
+
 def _patch_html_paths(html: str, run_id: str) -> str:
     """
     Copy the cropped logo into the run's design folder and rewrite any
@@ -361,9 +393,10 @@ async def _render_card_to_jpg(run_id: str):
     if not html_path.exists():
         return
 
-    # Patch logo paths before rendering
+    # Patch logo paths and ensure gradient overlay before rendering
     original_html = html_path.read_text(encoding="utf-8")
     patched_html = _patch_html_paths(original_html, run_id)
+    patched_html = _ensure_gradient_overlay(patched_html)
     html_path.write_text(patched_html, encoding="utf-8")
 
     try:

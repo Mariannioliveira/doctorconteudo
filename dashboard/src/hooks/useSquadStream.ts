@@ -60,6 +60,7 @@ export function useSquadStream(squadCode: string | null) {
         stepId: d.step_id,
         stepName: d.step_name,
         timestamp: new Date().toISOString(),
+        outputs: d.outputs ?? [],
       };
       addMessage(squadCode, msg);
     });

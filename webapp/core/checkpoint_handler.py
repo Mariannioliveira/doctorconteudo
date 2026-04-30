@@ -109,6 +109,20 @@ def _content_review(run_id: str) -> dict:
     if mv:
         verdict = mv.group(1).strip()
 
+    # Load available stories so user can pick another without re-running search
+    stories = []
+    ranked_raw = read_artifact(run_id, "v1/ranked-stories.yaml")
+    if ranked_raw:
+        try:
+            clean = _strip_code_fences(ranked_raw)
+            data = yaml.safe_load(clean)
+            if isinstance(data, dict):
+                stories = data.get("ranked_stories", data.get("stories", []))
+            elif isinstance(data, list):
+                stories = data
+        except Exception:
+            pass
+
     return {
         "type": "content_review",
         "title": "Carlos Cópia criou o conteúdo",
@@ -116,8 +130,10 @@ def _content_review(run_id: str) -> dict:
         "draft_md": draft_md,
         "review_md": review_md,
         "verdict": verdict,
+        "stories": stories,
         "actions": [
             {"action": "create_design", "label": "Criar design", "style": "primary"},
+            {"action": "rewrite_copy", "label": "Escolher outra notícia", "style": "secondary"},
             {"action": "request_changes", "label": "Ajustar conteúdo", "style": "secondary", "has_feedback": True},
             {"action": "save_draft", "label": "Salvar rascunho", "style": "ghost"},
         ],

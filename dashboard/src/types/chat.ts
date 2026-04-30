@@ -82,6 +82,7 @@ export type ChatMessage =
       stepId: string;
       stepName: string;
       timestamp: string;
+      outputs?: { file: string; content: string; step: string }[];
     }
   | {
       id: string;

@@ -36,6 +36,11 @@ class CheckpointDecision(BaseModel):
     feedback: Optional[str] = None
 
 
+class RerunRequest(BaseModel):
+    source_run_id: str
+    selected_story: Optional[Any] = None
+
+
 class RunListItem(BaseModel):
     run_id: str
     squad: str

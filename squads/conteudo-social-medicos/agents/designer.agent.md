@@ -125,7 +125,7 @@ Estrutura base:
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { width: 1080px; height: 1350px; overflow: hidden; position: relative; font-family: 'Montserrat', sans-serif; }
   .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 50%, rgba(0,0,0,0.0) 100%); }
+  .overlay { position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,0.97) 0%, rgba(0,0,0,0.88) 30%, rgba(0,0,0,0.60) 55%, rgba(0,0,0,0.15) 80%, rgba(0,0,0,0.0) 100%); }
   .content { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; }
   .headline-block { padding: 0 64px 48px; text-align: center; }
   h1 { font-size: 76px; font-weight: 800; color: #FFFFFF; line-height: 1.15; }

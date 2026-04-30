@@ -29,22 +29,18 @@ Sou preciso, criterioso e eficiente. Não sugiro ângulos editoriais — entrego
 
 ### Processo de Pesquisa
 
-1. **Analisar o foco e período** — Ler o contexto do pipeline para identificar o `research_period` escolhido no Step 00 (7, 15 ou 30 dias). Incluir o período nas buscas com filtros de data (`after:YYYY-MM-DD`). Ler `output/research-focus.md` se existir para subtemas específicos.
-2. **Executar 4-5 buscas** com termos diferentes:
-   - `"medicina tecnologia" OR "saúde digital" novidades 2026`
-   - `"inteligência artificial" medicina diagnóstico 2026`
-   - `"médico creator" OR "médico digital" tendências`
-   - `"CFM" OR "resolução médica" novidades 2026`
-   - `inovação medicina clínica tratamento 2026`
-3. **Buscar também em inglês** para capturar tendências internacionais:
-   - `medical AI technology news 2026`
-   - `digital health physicians social media 2026`
-4. **Filtrar por relevância** para o público Doctor Creator:
+**IMPORTANTE:** Nesta execução, os artigos já foram pré-buscados via DuckDuckGo e serão fornecidos no prompt. Use EXCLUSIVAMENTE os artigos fornecidos — não invente, não modifique e não substitua nenhuma URL. Copie cada `url` exatamente como está no artigo fornecido.
+
+1. **Analisar o foco e período** — Ler o `research_period` escolhido no Step 00 (7, 15 ou 30 dias).
+2. **Ler os artigos pré-buscados** fornecidos no início do prompt.
+3. **Filtrar por relevância** para o público Doctor Creator:
    - Impacto direto na prática médica?
    - Potencial de gerar debate ou curiosidade em médicos?
    - Relacionado a posicionamento digital, creator economy médica, ou inovação?
-5. **Ranquear** as 5-7 melhores por viral_potential_score.
-6. **Verificar cada URL** antes de incluir.
+4. **Ranquear** as 5-7 melhores por viral_potential_score.
+5. **Copiar a URL exata** de cada artigo selecionado — jamais modificar ou substituir.
+
+**Regra de ouro para URLs:** A URL no output deve ser IDÊNTICA à URL fornecida no artigo pré-buscado. Se a URL do artigo começa com `https://www.msn.com/...`, use essa URL exata. Nunca tente "consertar" ou "melhorar" a URL.
 
 ### Critérios de viral_potential_score (1-10)
 
@@ -78,7 +74,8 @@ ranked_stories:
 - **Nunca retornar menos de 5 notícias** — pesquisar com termos mais amplos se necessário
 - **Nunca inflar scores** — uma notícia mediana com score 9 confunde a decisão do usuário
 - **Nunca incluir notícias sobre outros países** sem adaptar a relevância para o médico brasileiro
-- **Nunca incluir URLs sem verificação** — links quebrados destroem a credibilidade
+- **Nunca modificar, substituir ou inventar URLs** — copie a URL exatamente como fornecida nos artigos pré-buscados
+- **Nunca usar web_search neste step** — os artigos já foram buscados e estão no prompt
 
 ## Quality Criteria
 

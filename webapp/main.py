@@ -19,7 +19,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from core.config import PROJECT_ROOT, STEP_OUTPUT_FILES
 from core.file_manager import now_iso
-from core.models import RunContext, CheckpointDecision
+from core.models import RunContext, CheckpointDecision, RerunRequest
 from core import pipeline_runner
 
 SQUADS_ROOT = PROJECT_ROOT / "squads"
@@ -234,14 +234,19 @@ def run_state_to_squad_state(run_state: dict, existing_squad_state: dict | None)
 # Pipeline run management
 # ─────────────────────────────────────────────
 
-async def run_and_broadcast(squad_code: str, run_id: str, ctx: RunContext) -> None:
+async def run_and_broadcast(
+    squad_code: str, run_id: str, ctx: RunContext,
+    reuse_from: str | None = None, selected_story: dict | None = None,
+) -> None:
     try:
         initial_state = build_initial_squad_state(squad_code)
         save_squad_state(squad_code, initial_state)
         existing_squad_state = initial_state  # always use fresh squad.yaml–derived state
         await ws_manager.broadcast({"type": "SQUAD_ACTIVE", "squad": squad_code, "state": initial_state})
 
-        pipeline_task = asyncio.create_task(pipeline_runner.run_pipeline(run_id, ctx))
+        pipeline_task = asyncio.create_task(
+            pipeline_runner.run_pipeline(run_id, ctx, reuse_from=reuse_from, selected_story=selected_story)
+        )
         ctx.task = pipeline_task
 
         while not pipeline_task.done():
@@ -422,6 +427,38 @@ async def start_squad_run(squad_code: str):
     return {"run_id": run_id, "squad": squad_code, "status": "started"}
 
 
+@app.post("/api/squads/{squad_code}/rerun")
+async def rerun_from_story(squad_code: str, body: RerunRequest):
+    """Start a new run reusing ranked-stories.yaml from a previous run, jumping to step-03."""
+    if squad_code in active_runs:
+        return JSONResponse({"error": "Squad já está em execução"}, status_code=409)
+    if not (SQUADS_ROOT / squad_code).exists():
+        return JSONResponse({"error": "Squad not found"}, status_code=404)
+
+    source_run_id = body.source_run_id
+    selected_story = body.selected_story
+
+    # Validate source run exists and has ranked-stories
+    source_dir = SQUADS_ROOT / squad_code / "output" / source_run_id
+    stories_file = source_dir / "v1" / "ranked-stories.yaml"
+    if not stories_file.exists():
+        return JSONResponse({"error": "ranked-stories.yaml não encontrado no run de origem"}, status_code=400)
+
+    stop_signal = SQUADS_ROOT / squad_code / ".stop_signal"
+    if stop_signal.exists():
+        stop_signal.unlink()
+
+    run_id = f"run-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+    ctx = RunContext(run_id=run_id, checkpoint_event=asyncio.Event())
+    active_runs[squad_code] = ctx
+
+    asyncio.create_task(
+        run_and_broadcast(squad_code, run_id, ctx,
+                          reuse_from=source_run_id, selected_story=selected_story)
+    )
+    return {"run_id": run_id, "squad": squad_code, "status": "started"}
+
+
 @app.post("/api/squads/{squad_code}/stop")
 async def stop_squad_run(squad_code: str):
     # Cancel in-process task and wait for it to actually finish.
@@ -524,6 +561,30 @@ async def get_pending_state(squad_code: str):
     ctx = active_runs.get(squad_code)
     state = load_squad_state(squad_code)
     checkpoint = pending_checkpoints.get(squad_code)
+
+    # If pending_checkpoints is empty (e.g. after server restart) but the run is paused
+    # at a checkpoint, reconstruct the payload from disk using the run's current_step.
+    if not checkpoint and ctx:
+        run_state_path = SQUADS_ROOT / squad_code / "output" / ctx.run_id / "state.json"
+        if run_state_path.exists():
+            try:
+                run_state = json.loads(run_state_path.read_text(encoding="utf-8"))
+                if run_state.get("status") == "checkpoint":
+                    step_id = run_state.get("current_step")
+                    if step_id:
+                        from core.checkpoint_handler import build_payload
+                        from core.file_manager import load_pipeline_yaml
+                        pipeline = load_pipeline_yaml()
+                        step_name = next(
+                            (s.get("name", step_id) for s in pipeline.get("steps", []) if s["id"] == step_id),
+                            step_id,
+                        )
+                        checkpoint = build_payload(step_id, ctx.run_id)
+                        checkpoint["step_id"] = step_id
+                        checkpoint["step_name"] = step_name
+                        pending_checkpoints[squad_code] = checkpoint
+            except Exception:
+                pass
 
     # Rebuild payload from disk so stale/empty payloads get fresh artifact data
     if checkpoint and ctx:
@@ -667,6 +728,50 @@ async def get_agent_details(squad_code: str, agent_id: str):
         "recentActivity": recent_activity[:5],
         "latestOutputs": latest_outputs,
     }
+
+
+# ─────────────────────────────────────────────
+# Stories from a completed run (for reuse panel)
+# ─────────────────────────────────────────────
+
+@app.get("/api/squads/{squad_code}/runs/{run_id}/stories")
+async def get_run_stories(squad_code: str, run_id: str):
+    stories_path = SQUADS_ROOT / squad_code / "output" / run_id / "v1" / "ranked-stories.yaml"
+    if not stories_path.exists():
+        return {"stories": [], "run_id": run_id}
+    try:
+        raw = stories_path.read_text(encoding="utf-8")
+        import re as _re
+        raw = _re.sub(r'^```[a-zA-Z]*\s*\n?', '', raw.strip())
+        raw = _re.sub(r'\n?```\s*$', '', raw)
+        data = yaml.safe_load(raw)
+        if isinstance(data, dict):
+            stories = data.get("ranked_stories", data.get("stories", []))
+        elif isinstance(data, list):
+            stories = data
+        else:
+            stories = []
+        return {"stories": stories, "run_id": run_id}
+    except Exception:
+        return {"stories": [], "run_id": run_id}
+
+
+# ─────────────────────────────────────────────
+# Download card image (browser download)
+# ─────────────────────────────────────────────
+
+@app.get("/api/squads/{squad_code}/runs/{run_id}/card/download")
+async def download_card(squad_code: str, run_id: str):
+    from fastapi.responses import FileResponse
+    card_path = SQUADS_ROOT / squad_code / "output" / run_id / "design" / "card.jpg"
+    if not card_path.exists():
+        raise HTTPException(status_code=404, detail="Card não encontrado")
+    return FileResponse(
+        str(card_path),
+        media_type="image/jpeg",
+        filename=f"doctorcreator-{run_id}.jpg",
+        headers={"Content-Disposition": f'attachment; filename="doctorcreator-{run_id}.jpg"'},
+    )
 
 
 # ─────────────────────────────────────────────

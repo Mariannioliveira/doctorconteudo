@@ -42,13 +42,36 @@ interface SquadStore {
 let _msgCounter = 0;
 function nextId() { return `msg-${++_msgCounter}-${Date.now()}`; }
 
+const SESSION_KEY = "opensquad:chatMessages";
+
+function saveMessagesToSession(chatMessages: Map<string, ChatMessage[]>) {
+  try {
+    const plain: Record<string, ChatMessage[]> = {};
+    chatMessages.forEach((msgs, squad) => {
+      // Never persist checkpoint messages — server always replays them on reconnect,
+      // storing them causes duplicates and stale payloads on reload.
+      plain[squad] = msgs.filter((m) => m.type !== "checkpoint");
+    });
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(plain));
+  } catch { /* quota exceeded or private mode */ }
+}
+
+function loadMessagesFromSession(): Map<string, ChatMessage[]> {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return new Map();
+    const plain = JSON.parse(raw) as Record<string, ChatMessage[]>;
+    return new Map(Object.entries(plain));
+  } catch { return new Map(); }
+}
+
 export const useSquadStore = create<SquadStore>((set, get) => ({
   squads: new Map(),
   activeStates: new Map(),
   selectedSquad: null,
   selectedAgent: null,
   isConnected: false,
-  chatMessages: new Map(),
+  chatMessages: loadMessagesFromSession(),
   tokenBuffer: new Map(),
 
   selectSquad: (name: string | null) => set({ selectedSquad: name, selectedAgent: null }),
@@ -83,8 +106,19 @@ export const useSquadStore = create<SquadStore>((set, get) => ({
 
   addMessage: (squad: string, msg: ChatMessage) =>
     set((prev) => {
-      const msgs = [...(prev.chatMessages.get(squad) ?? []), msg];
-      return { chatMessages: new Map(prev.chatMessages).set(squad, msgs) };
+      const existing = prev.chatMessages.get(squad) ?? [];
+      // Deduplicate checkpoints: replace an existing unresolved checkpoint for the same step
+      // instead of appending. This prevents duplicates on SSE reconnect.
+      let base = existing;
+      if (msg.type === "checkpoint") {
+        base = existing.filter(
+          (m) => !(m.type === "checkpoint" && m.stepId === (msg as Extract<ChatMessage, { type: "checkpoint" }>).stepId && !m.resolved)
+        );
+      }
+      const msgs = [...base, msg];
+      const next = new Map(prev.chatMessages).set(squad, msgs);
+      saveMessagesToSession(next);
+      return { chatMessages: next };
     }),
 
   resolveCheckpoint: (squad: string, stepId: string, action: string, feedback?: string) =>
@@ -94,7 +128,9 @@ export const useSquadStore = create<SquadStore>((set, get) => ({
           ? { ...m, resolved: true, resolution: { action, feedback } }
           : m
       );
-      return { chatMessages: new Map(prev.chatMessages).set(squad, msgs) };
+      const next = new Map(prev.chatMessages).set(squad, msgs);
+      saveMessagesToSession(next);
+      return { chatMessages: next };
     }),
 
   appendToken: (squad: string, agentId: string, token: string) =>
