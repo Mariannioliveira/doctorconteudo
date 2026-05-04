@@ -131,10 +131,10 @@ Estrutura base:
   .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .overlay { position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,1.0) 0%, rgba(0,0,0,1.0) 30%, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.4) 62%, rgba(0,0,0,0.0) 75%); }
   .content { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; justify-content: flex-end; }
-  .headline-block { padding: 0 160px 220px; text-align: center; }
+  .headline-block { padding: 0 160px 218px; text-align: center; }
   h1 { font-size: 47px; font-weight: 800; color: #FFFFFF; line-height: 1.15; }
   .subtitle { font-size: 34px; font-weight: 500; color: rgba(255,255,255,0.88); margin-top: 16px; }
-  .footer { width: 100%; background: transparent; display: flex; align-items: center; justify-content: space-between; padding: 20px 48px 66px; }
+  .footer { width: 100%; background: transparent; display: flex; align-items: center; justify-content: space-between; padding: 20px 48px 69px; }
   .footer img { height: 110px; width: auto; }
   .footer-cta { font-size: 22px; font-weight: 400; color: #FFFFFF; letter-spacing: 0.12em; text-transform: uppercase; }
   .accent { color: #92adff; }
