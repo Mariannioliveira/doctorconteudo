@@ -355,32 +355,56 @@ def _ensure_gradient_overlay(html: str) -> str:
 
 def _patch_html_paths(html: str, run_id: str) -> str:
     """
-    Copy the cropped logo into the run's design folder and rewrite any
-    logo reference in the HTML to point to that local file.
-    Avoids file:// absolute paths because the project root contains a space
-    ("conteudo interno") which breaks Chromium URL resolution.
+    1. Copy the cropped logo into the run's design folder and rewrite logo refs.
+    2. Download any external https:// background image to img-bg.jpg locally
+       so Playwright (headless) doesn't get blocked by Unsplash/CDN restrictions.
     """
     import re as _re
     import shutil as _shutil
-    src_logo = PROJECT_ROOT / "_opensquad" / "assets" / "logo-doctorcreator-cropped.png"
-    if not src_logo.exists():
-        # Fallback to the original (uncropped) file if the cropped version is missing
-        src_logo = PROJECT_ROOT / "_opensquad" / "assets" / "logo-doctorcreator.png"
+    import urllib.request as _urlreq
 
     run_dir = get_run_dir(run_id)
-    dst_logo = run_dir / "design" / "logo-doctorcreator.png"
-    dst_logo.parent.mkdir(parents=True, exist_ok=True)
+    design_dir = run_dir / "design"
+    design_dir.mkdir(parents=True, exist_ok=True)
+
+    # ── Logo ──────────────────────────────────────────────────────
+    src_logo = PROJECT_ROOT / "_opensquad" / "assets" / "logo-doctorcreator-cropped.png"
+    if not src_logo.exists():
+        src_logo = PROJECT_ROOT / "_opensquad" / "assets" / "logo-doctorcreator.png"
+    dst_logo = design_dir / "logo-doctorcreator.png"
     try:
         _shutil.copyfile(src_logo, dst_logo)
     except Exception as e:
         print(f"[designer] failed to copy logo: {e}")
-
-    # Rewrite any reference (relative or absolute) to logo-doctorcreator*.png
     html = _re.sub(
         r'["\']([^"\']*logo-doctorcreator[^"\']*\.png)["\']',
         '"./logo-doctorcreator.png"',
         html,
     )
+
+    # ── Background image: download external URL to local img-bg.jpg ──
+    bg_match = _re.search(
+        r'<img[^>]+class=["\'][^"\']*\bbg\b[^"\']*["\'][^>]+src=["\']([^"\']+)["\']',
+        html,
+    ) or _re.search(
+        r'<img[^>]+src=["\']([^"\']+)["\'][^>]+class=["\'][^"\']*\bbg\b[^"\']*["\']',
+        html,
+    )
+    if bg_match:
+        bg_url = bg_match.group(1)
+        if bg_url.startswith("http"):
+            dst_bg = design_dir / "img-bg.jpg"
+            if not dst_bg.exists():
+                try:
+                    req = _urlreq.Request(bg_url, headers={"User-Agent": "Mozilla/5.0"})
+                    with _urlreq.urlopen(req, timeout=15) as resp:
+                        dst_bg.write_bytes(resp.read())
+                    print(f"[designer] downloaded background image → img-bg.jpg")
+                except Exception as e:
+                    print(f"[designer] failed to download bg image: {e}")
+            if dst_bg.exists():
+                html = html.replace(f'"{bg_url}"', '"./img-bg.jpg"').replace(f"'{bg_url}'", '"./img-bg.jpg"')
+
     return html
 
 
