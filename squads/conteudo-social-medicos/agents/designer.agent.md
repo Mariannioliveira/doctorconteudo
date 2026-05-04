@@ -36,7 +36,7 @@ Typography:
   Family:     'Montserrat', sans-serif (Google Fonts @import)
   Headline:   47px / font-weight 800 / line-height 1.15 / text-align center
   Subtitle:   34px / font-weight 500 / text-align center / opacity 0.88
-  Footer CTA: 22px / font-weight 700 / letter-spacing 0.12em / uppercase
+  Footer CTA: 22px / font-weight 400 / letter-spacing 0.12em / uppercase
 
 Spacing:
   Lateral margin: 160px (caixa de texto estreita para melhor quebra de linha)
@@ -136,7 +136,7 @@ Estrutura base:
   .subtitle { font-size: 34px; font-weight: 500; color: rgba(255,255,255,0.88); margin-top: 16px; }
   .footer { width: 100%; background: transparent; display: flex; align-items: center; justify-content: space-between; padding: 20px 48px 64px; }
   .footer img { height: 110px; width: auto; }
-  .footer-cta { font-size: 22px; font-weight: 700; color: #FFFFFF; letter-spacing: 0.12em; text-transform: uppercase; }
+  .footer-cta { font-size: 22px; font-weight: 400; color: #FFFFFF; letter-spacing: 0.12em; text-transform: uppercase; }
   .accent { color: #92adff; }
 </style>
 </head>
