@@ -134,7 +134,7 @@ Estrutura base:
   .headline-block { padding: 0 160px 220px; text-align: center; }
   h1 { font-size: 47px; font-weight: 800; color: #FFFFFF; line-height: 1.15; }
   .subtitle { font-size: 34px; font-weight: 500; color: rgba(255,255,255,0.88); margin-top: 16px; }
-  .footer { width: 100%; background: transparent; display: flex; align-items: center; justify-content: space-between; padding: 20px 48px 64px; }
+  .footer { width: 100%; background: transparent; display: flex; align-items: center; justify-content: space-between; padding: 20px 48px 66px; }
   .footer img { height: 110px; width: auto; }
   .footer-cta { font-size: 22px; font-weight: 400; color: #FFFFFF; letter-spacing: 0.12em; text-transform: uppercase; }
   .accent { color: #92adff; }
