@@ -321,7 +321,7 @@ def _save_output(step_id: str, run_id: str, content: str, agent_id: str):
             write_artifact(run_id, rel_path, content)
 
 
-_GRADIENT = "linear-gradient(to top, rgba(0,0,0,0.97) 0%, rgba(0,0,0,0.88) 30%, rgba(0,0,0,0.60) 55%, rgba(0,0,0,0.15) 80%, rgba(0,0,0,0.0) 100%)"
+_GRADIENT = "linear-gradient(to top, rgba(0,0,0,1.0) 0%, rgba(0,0,0,1.0) 30%, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.4) 62%, rgba(0,0,0,0.0) 75%)"
 _OVERLAY_CSS = f"  .overlay {{ position: absolute; inset: 0; z-index: 1; background: {_GRADIENT}; }}"
 _OVERLAY_DIV = '<div class="overlay"></div>'
 
@@ -400,16 +400,36 @@ async def _render_card_to_jpg(run_id: str):
     html_path.write_text(patched_html, encoding="utf-8")
 
     try:
+        import http.server
+        import threading
+        import urllib.parse as _urlparse
+
+        design_dir = html_path.parent
+        port = 0  # OS picks a free port
+
+        class _Handler(http.server.SimpleHTTPRequestHandler):
+            def __init__(self, *a, **kw):
+                super().__init__(*a, directory=str(design_dir), **kw)
+            def log_message(self, *_):
+                pass
+
+        httpd = http.server.HTTPServer(("127.0.0.1", port), _Handler)
+        port = httpd.server_address[1]
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+
         from playwright.async_api import async_playwright
         async with async_playwright() as p:
             browser = await p.chromium.launch()
             page = await browser.new_page()
             await page.set_viewport_size({"width": 1080, "height": 1350})
-            await page.goto(f"file://{html_path.resolve()}")
+            await page.goto(f"http://127.0.0.1:{port}/card.html")
             # Wait for fonts + background image to load
             await page.wait_for_timeout(2500)
             await page.screenshot(path=str(jpg_path), full_page=False)
             await browser.close()
+
+        httpd.shutdown()
         # Remove stale error file if render succeeded
         err_file = run_dir / "design" / "render-error.txt"
         if err_file.exists():

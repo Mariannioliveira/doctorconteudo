@@ -3,10 +3,24 @@ Maps step IDs to checkpoint payload builders.
 Each function reads current run artifacts and returns a structured payload
 that the frontend uses to render the checkpoint UI.
 """
+import json
 import yaml
 import re
 from pathlib import Path
 from .file_manager import read_artifact, list_design_files, get_card_html_url, get_run_dir
+from .config import SQUAD_ROOT
+
+_USED_STORIES_PATH = SQUAD_ROOT / "_memory" / "used-stories.json"
+
+
+def _load_used_urls() -> set[str]:
+    try:
+        if _USED_STORIES_PATH.exists():
+            data = json.loads(_USED_STORIES_PATH.read_text(encoding="utf-8"))
+            return {entry.get("url", "") for entry in data if entry.get("url")}
+    except Exception:
+        pass
+    return set()
 
 
 def _strip_code_fences(text: str) -> str:
@@ -75,6 +89,11 @@ def _story_selection(run_id: str) -> dict:
                 stories = data
         except Exception:
             pass
+
+    used_urls = _load_used_urls()
+    if used_urls:
+        stories = [s for s in stories if s.get("url", "") not in used_urls]
+
     return {
         "type": "story_selection",
         "title": f"Dr. Scout encontrou {len(stories)} notícias",

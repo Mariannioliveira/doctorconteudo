@@ -612,11 +612,40 @@ async def get_pending_state(squad_code: str):
 # Checkpoint approval
 # ─────────────────────────────────────────────
 
+def _record_used_story(squad_code: str, story: dict) -> None:
+    """Append the selected story URL to the squad's used-stories.json (best-effort)."""
+    try:
+        url = story.get("url", "")
+        if not url:
+            return
+        memory_dir = SQUADS_ROOT / squad_code / "_memory"
+        memory_dir.mkdir(parents=True, exist_ok=True)
+        used_path = memory_dir / "used-stories.json"
+        existing: list = []
+        if used_path.exists():
+            try:
+                existing = json.loads(used_path.read_text(encoding="utf-8"))
+            except Exception:
+                existing = []
+        if not any(e.get("url") == url for e in existing):
+            existing.append({
+                "url": url,
+                "title": story.get("title", story.get("titulo", "")),
+                "approved_at": datetime.now(timezone.utc).isoformat(),
+            })
+            used_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
 @app.post("/api/squads/{squad_code}/checkpoint")
 async def submit_checkpoint(squad_code: str, decision: CheckpointDecision):
     ctx = active_runs.get(squad_code)
     if not ctx:
         return JSONResponse({"error": "Nenhuma run ativa para este squad"}, status_code=404)
+
+    if decision.step_id == "step-02" and decision.action == "select" and isinstance(decision.value, dict):
+        _record_used_story(squad_code, decision.value)
 
     ctx.checkpoint_decision = decision.model_dump()
     ctx.checkpoint_event.set()

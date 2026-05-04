@@ -1,15 +1,69 @@
 {
   "squad": "conteudo-social-medicos",
-  "status": "running",
-  "step": { "current": 2, "total": 12, "label": "step-01" },
+  "status": "checkpoint",
+  "step": {
+    "current": 7,
+    "total": 9,
+    "label": "Aprovação para Publicação"
+  },
   "agents": [
-    { "id": "pesquisador", "name": "Dr. Scout", "icon": "🔎", "status": "working", "deliverTo": null, "desk": { "col": 1, "row": 1 } },
-    { "id": "estrategista", "name": "Ana Estratégia", "icon": "🧭", "status": "idle", "deliverTo": null, "desk": { "col": 2, "row": 1 } },
-    { "id": "redator", "name": "Carlos Cópia", "icon": "✍️", "status": "idle", "deliverTo": null, "desk": { "col": 3, "row": 1 } },
-    { "id": "revisor", "name": "Vera Veredito", "icon": "🔍", "status": "idle", "deliverTo": null, "desk": { "col": 1, "row": 2 } },
-    { "id": "publicador", "name": "Paula Post", "icon": "📲", "status": "idle", "deliverTo": null, "desk": { "col": 2, "row": 2 } }
+    {
+      "id": "pesquisador",
+      "name": "Dr. Scout",
+      "icon": "🔎",
+      "status": "done",
+      "deliverTo": null,
+      "desk": {
+        "col": 1,
+        "row": 1
+      }
+    },
+    {
+      "id": "redator",
+      "name": "Carlos Cópia",
+      "icon": "✍️",
+      "status": "done",
+      "deliverTo": null,
+      "desk": {
+        "col": 2,
+        "row": 1
+      }
+    },
+    {
+      "id": "revisor",
+      "name": "Vera Veredito",
+      "icon": "🔍",
+      "status": "done",
+      "deliverTo": null,
+      "desk": {
+        "col": 3,
+        "row": 1
+      }
+    },
+    {
+      "id": "designer",
+      "name": "Marco Design",
+      "icon": "🎨",
+      "status": "done",
+      "deliverTo": null,
+      "desk": {
+        "col": 1,
+        "row": 2
+      }
+    },
+    {
+      "id": "publicador",
+      "name": "Paula Post",
+      "icon": "📲",
+      "status": "idle",
+      "deliverTo": null,
+      "desk": {
+        "col": 2,
+        "row": 2
+      }
+    }
   ],
   "handoff": null,
-  "startedAt": "2026-03-31T11:17:27Z",
-  "updatedAt": "2026-03-31T11:17:45Z"
+  "startedAt": "2026-05-04T19:14:21.372853+00:00",
+  "updatedAt": "2026-05-04T19:15:51.068427+00:00"
 }

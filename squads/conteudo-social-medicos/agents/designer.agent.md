@@ -29,19 +29,19 @@ Viewport:   1080 x 1350px (formato 4:5 portrait)
 Colors:
   Accent:     #92adff  (cor de destaque — palavras-chave da headline)
   Text:       #FFFFFF  (todo o texto principal)
-  Footer bg:  rgba(0, 0, 0, 0.88)
-  Overlay:    linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 50%, rgba(0,0,0,0.0) 100%)
+  Footer bg:  transparent  (sem fundo sólido — o gradiente já cobre a base)
+  Overlay:    linear-gradient(to top, rgba(0,0,0,1.0) 0%, rgba(0,0,0,1.0) 30%, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.4) 62%, rgba(0,0,0,0.0) 75%)
 
 Typography:
   Family:     'Montserrat', sans-serif (Google Fonts @import)
-  Headline:   68-80px / font-weight 800 / line-height 1.15 / text-align center
+  Headline:   47px / font-weight 800 / line-height 1.15 / text-align center
   Subtitle:   34px / font-weight 500 / text-align center / opacity 0.88
   Footer CTA: 22px / font-weight 700 / letter-spacing 0.12em / uppercase
 
 Spacing:
-  Lateral margin: 64px
-  Headline bottom padding: 48px above footer bar
-  Footer bar height: 150px
+  Lateral margin: 160px (caixa de texto estreita para melhor quebra de linha)
+  Headline bottom padding: 220px above footer (título posicionado mais alto no card)
+  Footer padding: 20px top / 48px lateral / 64px bottom (sem height fixo — logo afastada do rodapé)
 
 Logo:
   Arquivo: _opensquad/assets/logo-doctorcreator-cropped.png  (versão recortada — usar SEMPRE esta, não a original)
@@ -101,13 +101,17 @@ O card tem 3 camadas:
 ### 3. Escolher / descrever a foto de fundo
 
 Usar a descrição do visual fornecida pelo Carlos Cópia. A foto deve ser:
-- Fotorrealista e dramática
-- Diretamente relacionada ao tema do conteúdo
-- Com área central/inferior razoavelmente limpa (onde vai a headline)
+- **Visualmente impactante e diretamente relacionada ao tema do título** — quem vê deve entender o assunto instantaneamente
+- **NÃO precisa ter pessoa** — imagens microscópicas, ilustrações científicas 3D, células, órgãos, equipamentos médicos de perto são excelentes escolhas. O que importa é o impacto visual e a conexão com o tema
+- **Sujeito principal centralizado e em destaque** — preenchendo o frame com cor, textura e detalhe
+- **Alta saturação, contraste e fundo escuro/dramático** — funciona melhor com o overlay gradiente. Exemplos ideais: células cancerígenas 3D em roxo/vermelho vibrante, glóbulos vermelhos com fundo escuro, scanner cerebral iluminado, DNA helix colorido
+- **Evitar absolutamente**: fundo branco ou cinza lavado, imagem genérica de pessoa no computador ou digitando, foto sem cor ou sem expressão visual, imagem que não remeta claramente ao tema do título
 
-**Se a foto precisar ser buscada:** usar WebSearch com termos descritivos em inglês para encontrar imagem adequada (Unsplash, Pexels). Salvar em `output/{run-id}/design/img-bg.jpg`.
+**Critério obrigatório de busca:** usar termos em inglês altamente específicos e visuais (ex: para "câncer de pâncreas": `pancreatic cancer cell 3d render`, `cancer tumor microscope dark background`; para "glóbulos/sangue": `red blood cells dark dramatic`, `hemoglobin microscope saturated`; para "IA médica": `neural network brain scan glowing`, `AI medical scan futuristic`). Sempre priorizar imagens com fundo escuro natural e cores saturadas.
 
-**Se for usar uma imagem já disponível em `output/{run-id}/design/`:** referenciar com caminho relativo.
+**Se a foto precisar ser buscada:** usar WebSearch para encontrar a URL direta de uma imagem do Unsplash ou Pexels. **Usar a URL direta no atributo `src` da tag `<img class="bg">` — ex: `src="https://images.unsplash.com/photo-XXXX?w=1080&h=1350&fit=crop&crop=center"`**. NÃO usar `./img-bg.jpg` — o agente não consegue baixar arquivos binários, e a referência local ficará quebrada.
+
+**Se for usar uma imagem já disponível localmente em `output/{run-id}/design/` (ex: `img-bg.jpg` baixado pelo pipeline):** referenciar com caminho relativo `./img-bg.jpg`.
 
 ### 4. Criar o arquivo HTML
 
@@ -125,12 +129,12 @@ Estrutura base:
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { width: 1080px; height: 1350px; overflow: hidden; position: relative; font-family: 'Montserrat', sans-serif; }
   .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .overlay { position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,0.97) 0%, rgba(0,0,0,0.88) 30%, rgba(0,0,0,0.60) 55%, rgba(0,0,0,0.15) 80%, rgba(0,0,0,0.0) 100%); }
-  .content { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; }
-  .headline-block { padding: 0 64px 48px; text-align: center; }
-  h1 { font-size: 76px; font-weight: 800; color: #FFFFFF; line-height: 1.15; }
+  .overlay { position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,1.0) 0%, rgba(0,0,0,1.0) 30%, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.4) 62%, rgba(0,0,0,0.0) 75%); }
+  .content { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; justify-content: flex-end; }
+  .headline-block { padding: 0 160px 220px; text-align: center; }
+  h1 { font-size: 47px; font-weight: 800; color: #FFFFFF; line-height: 1.15; }
   .subtitle { font-size: 34px; font-weight: 500; color: rgba(255,255,255,0.88); margin-top: 16px; }
-  .footer { width: 100%; height: 150px; background: rgba(0,0,0,0.88); display: flex; align-items: center; justify-content: space-between; padding: 0 48px; }
+  .footer { width: 100%; background: transparent; display: flex; align-items: center; justify-content: space-between; padding: 20px 48px 64px; }
   .footer img { height: 110px; width: auto; }
   .footer-cta { font-size: 22px; font-weight: 700; color: #FFFFFF; letter-spacing: 0.12em; text-transform: uppercase; }
   .accent { color: #92adff; }
@@ -188,6 +192,7 @@ Pronto para aprovação e publicação.
 12. **NUNCA desenhar "cenas" em CSS** — nada de `div`s posicionados simulando médico, tripé, ring light, paredes, jaleco, lapelas, celular ou qualquer outro elemento decorativo. Apenas a foto de fundo (uma `<img class="bg">`) + overlay + conteúdo. Sem fallback ilustrado.
 13. **NUNCA usar JavaScript no HTML** — sem `onerror`, sem `onload`, sem `<script>`. Se a imagem não carregar, o navegador mostra área vazia (e o overlay escuro garante leitura) — **isso é aceitável**, não tente "consertar" com fallback.
 14. **NUNCA inserir camada de fallback decorativo** (`.bg-fallback`, `.scene`, `.scene-figure`, etc). Se quiser uma cor de fundo enquanto a imagem carrega, use apenas `body { background: #0a0a0a }` — nada além disso.
+15. **NUNCA usar `./img-bg.jpg` como src da imagem de fundo** — o agente não consegue baixar arquivos binários. Usar sempre a URL direta https:// da imagem (ex: Unsplash, Pexels). Ex: `<img class="bg" src="https://images.unsplash.com/photo-XXXX?w=1080&h=1350&fit=crop" alt="">`.
 
 **Sempre fazer:**
 1. Seguir o design system fixo sem variações
@@ -199,11 +204,12 @@ Pronto para aprovação e publicação.
 
 - [ ] Viewport exata: `body { width: 1080px; height: 1350px; }`
 - [ ] Fonte Montserrat importada via Google Fonts @import
-- [ ] Headline em Montserrat 800, mínimo 68px, centralizada, branca
+- [ ] Headline em Montserrat 800, 46px, centralizada, branca
 - [ ] Palavras de destaque com `color: #92adff` inline
 - [ ] Foto de fundo com `object-fit: cover`
-- [ ] Gradiente overlay: `linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 50%, transparent 100%)`
-- [ ] Footer bar: `rgba(0,0,0,0.88)`, height 150px
+- [ ] Gradiente overlay: `linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.80) 35%, rgba(0,0,0,0.50) 60%, rgba(0,0,0,0.10) 85%, rgba(0,0,0,0.0) 100%)`
+- [ ] Footer background: `transparent` (sem fundo sólido — gradiente cobre a base)
+- [ ] Footer padding: `20px 48px 44px` (sem height fixo)
 - [ ] Logo presente no footer: `./logo-doctorcreator.png` (cópia local da versão cropped), height 110px
 - [ ] "SAIBA MAIS NA LEGENDA ↓" presente no footer, direita, Montserrat 700, uppercase
 - [ ] HTML auto-contido (sem dependências externas além de Google Fonts)

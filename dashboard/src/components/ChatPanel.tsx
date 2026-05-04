@@ -783,14 +783,42 @@ function stripCites(text: string | undefined): string {
 }
 
 // ─────────────────────────────────────────────
+// Draft section parser
+// ─────────────────────────────────────────────
+
+const SECTION_ICONS: Record<string, string> = {
+  "HEADLINE DO CARD": "📰",
+  "PALAVRAS EM DESTAQUE (#92ADFF)": "✨",
+  "PALAVRAS EM DESTAQUE": "✨",
+  "DESCRIÇÃO DO VISUAL": "🖼️",
+  "LEGENDA INSTAGRAM": "📱",
+};
+
+function parseDraftSections(draft: string): { title: string; content: string }[] {
+  const sections: { title: string; lines: string[] }[] = [];
+  let current: { title: string; lines: string[] } | null = null;
+  for (const line of draft.split("\n")) {
+    const m = line.match(/^={2,}\s*(.+?)\s*={2,}$/);
+    if (m) {
+      if (current) sections.push(current);
+      current = { title: m[1].trim(), lines: [] };
+    } else if (current) {
+      current.lines.push(line);
+    }
+  }
+  if (current) sections.push(current);
+  return sections.map((s) => ({ title: s.title, content: s.lines.join("\n").trim() }));
+}
+
+// ─────────────────────────────────────────────
 // Content review body with expandable draft
 // ─────────────────────────────────────────────
 
 function ContentReviewBody({ payload }: { payload: CheckpointPayload }) {
-  const [draftExpanded, setDraftExpanded] = useState(false);
-  const PREVIEW_CHARS = 800;
+  const [legendaExpanded, setLegendaExpanded] = useState(false);
   const draft = payload.draft_md ?? "";
-  const isLong = draft.length > PREVIEW_CHARS;
+  const sections = parseDraftSections(draft);
+  const hasSections = sections.length > 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -801,17 +829,47 @@ function ContentReviewBody({ payload }: { payload: CheckpointPayload }) {
       )}
       {draft && (
         <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
-          <div
-            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 10px", background: "rgba(255,255,255,0.02)", borderBottom: "1px solid var(--border)", cursor: isLong ? "pointer" : "default" }}
-            onClick={() => isLong && setDraftExpanded((e) => !e)}
-          >
+          <div style={{ padding: "5px 10px", background: "rgba(255,255,255,0.02)", borderBottom: "1px solid var(--border)" }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-secondary)" }}>📄 Conteúdo gerado</span>
-            {isLong && <span style={{ fontSize: 10, color: "var(--accent-cyan)", fontWeight: 600 }}>{draftExpanded ? "Recolher ▲" : "Ver tudo ▼"}</span>}
           </div>
-          <pre style={{ ...previewStyle }}>
-            {draftExpanded ? draft : draft.slice(0, PREVIEW_CHARS)}
-            {!draftExpanded && isLong && <span style={{ color: "var(--text-secondary)" }}>{"\n"}…</span>}
-          </pre>
+          {hasSections ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+              {sections.map((sec, i) => {
+                const icon = SECTION_ICONS[sec.title.toUpperCase()] ?? "▸";
+                const isLegenda = sec.title.toUpperCase().includes("LEGENDA");
+                const LEGENDA_LIMIT = 320;
+                const isLong = isLegenda && sec.content.length > LEGENDA_LIMIT;
+                return (
+                  <div key={i} style={{ borderBottom: i < sections.length - 1 ? "1px solid var(--border)" : "none" }}>
+                    <div style={{ padding: "6px 12px 2px", fontSize: 9, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      {icon} {sec.title}
+                    </div>
+                    <div style={{ padding: "2px 12px 10px" }}>
+                      {isLegenda ? (
+                        <>
+                          <pre style={{ ...previewStyle, background: "transparent", border: "none", padding: 0, fontSize: 12, color: "var(--text-primary)" }}>
+                            {isLong && !legendaExpanded ? sec.content.slice(0, LEGENDA_LIMIT) : sec.content}
+                            {isLong && !legendaExpanded && <span style={{ color: "var(--text-secondary)" }}>…</span>}
+                          </pre>
+                          {isLong && (
+                            <button onClick={() => setLegendaExpanded((e) => !e)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 10, color: "var(--accent-cyan)", fontWeight: 600, padding: "4px 0 0", fontFamily: "inherit" }}>
+                              {legendaExpanded ? "Recolher ▲" : "Ver tudo ▼"}
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: sec.title.toUpperCase().includes("HEADLINE") ? 700 : 400, lineHeight: 1.5 }}>
+                          {sec.content}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <pre style={{ ...previewStyle }}>{draft}</pre>
+          )}
         </div>
       )}
       {payload.review_md && (
