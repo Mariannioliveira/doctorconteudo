@@ -18,6 +18,42 @@ from .checkpoint_handler import build_payload
 from . import agent_executor
 
 
+def _save_seen_stories(run_id: str) -> None:
+    """Save all currently shown story URLs to _memory/seen-stories.json so they're excluded next search."""
+    import json
+    try:
+        raw = read_artifact(run_id, "v1/ranked-stories.yaml")
+        if not raw:
+            return
+        import re as _re
+        clean = _re.sub(r'^```[a-zA-Z]*\s*\n?', '', raw.strip())
+        clean = _re.sub(r'\n?```\s*$', '', clean).strip()
+        data = yaml.safe_load(clean)
+        stories = []
+        if isinstance(data, dict):
+            stories = data.get("ranked_stories", data.get("stories", []))
+        elif isinstance(data, list):
+            stories = data
+
+        memory_dir = SQUAD_ROOT / "_memory"
+        memory_dir.mkdir(parents=True, exist_ok=True)
+        seen_path = memory_dir / "seen-stories.json"
+        existing: list = []
+        if seen_path.exists():
+            try:
+                existing = json.loads(seen_path.read_text(encoding="utf-8"))
+            except Exception:
+                existing = []
+        existing_urls = {e.get("url", "") for e in existing}
+        for story in stories:
+            url = story.get("url", "")
+            if url and url not in existing_urls:
+                existing.append({"url": url, "title": story.get("title", ""), "seen_at": datetime.now(timezone.utc).isoformat()})
+        seen_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        print(f"[pipeline] failed to save seen stories: {e}")
+
+
 def _slugify(text: str, max_len: int = 60) -> str:
     import re, unicodedata
     norm = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
@@ -224,6 +260,39 @@ async def run_pipeline(
                         run_dir = get_run_dir(run_id)
                         story_yaml = yaml.dump(story_value, allow_unicode=True, default_flow_style=False)
                         (run_dir / "selected-story.yaml").write_text(story_yaml, encoding="utf-8")
+
+                # step-02: user wants fresh news → save current stories as seen, re-run search
+                if step_id == "step-02" and action == "redo_search":
+                    _save_seen_stories(run_id)
+                    _update_step_status(state, step_id, "waiting")
+                    state["status"] = "running"
+                    save_run_state(state)
+                    await run_ctx.emit("checkpoint_resolved", {"step_id": step_id, "action": action})
+                    step_01 = next((s for s in steps if s["id"] == "step-01"), None)
+                    if step_01:
+                        await _run_agent_step(step_01, run_id, state, run_ctx, last_decision)
+                    # Re-present story selection checkpoint
+                    _update_step_status(state, step_id, "waiting")
+                    state["status"] = "checkpoint"
+                    save_run_state(state)
+                    payload = build_payload(step_id, run_id)
+                    await run_ctx.emit("checkpoint", {
+                        "step_id": step_id,
+                        "step_name": step.get("name", step_id),
+                        **payload
+                    })
+                    await run_ctx.checkpoint_event.wait()
+                    run_ctx.checkpoint_event.clear()
+                    decision = run_ctx.checkpoint_decision or {}
+                    last_decision = decision
+                    action = decision.get("action", "")
+                    save_checkpoint_decision(run_id, step_id, decision)
+                    if step_id == "step-02" and action == "select":
+                        story_value = decision.get("value")
+                        if story_value and isinstance(story_value, dict):
+                            run_dir = get_run_dir(run_id)
+                            story_yaml = yaml.dump(story_value, allow_unicode=True, default_flow_style=False)
+                            (run_dir / "selected-story.yaml").write_text(story_yaml, encoding="utf-8")
 
                 # Terminal: save draft
                 if action == "save_draft":

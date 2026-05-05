@@ -73,7 +73,15 @@ async def execute_step(
     user_message = _build_user_message(step, run_id, last_decision)
 
     if prefetched_news:
-        user_message = prefetched_news + "\n\n---\n\n" + user_message
+        # Inject list of already-seen/used story URLs so the agent excludes them
+        excluded = _load_excluded_story_urls()
+        exclusion_note = ""
+        if excluded:
+            url_list = "\n".join(f"- {u}" for u in sorted(excluded))
+            exclusion_note = (
+                f"\n\n⚠️ NOTÍCIAS JÁ MOSTRADAS — NÃO incluir no output (URLs a excluir):\n{url_list}\n"
+            )
+        user_message = prefetched_news + exclusion_note + "\n\n---\n\n" + user_message
 
     model_tier = agent_meta.get("model_tier", "standard")
     output = await _call_claude_cli(
@@ -310,6 +318,22 @@ def _extract_html(content: str) -> str:
     return content
 
 
+def _load_excluded_story_urls() -> set[str]:
+    """Load URLs from used-stories.json and seen-stories.json to pass as exclusion list to step-01."""
+    import json as _json
+    urls: set[str] = set()
+    memory_dir = SQUAD_ROOT / "_memory"
+    for fname in ("used-stories.json", "seen-stories.json"):
+        path = memory_dir / fname
+        try:
+            if path.exists():
+                data = _json.loads(path.read_text(encoding="utf-8"))
+                urls.update(entry.get("url", "") for entry in data if entry.get("url"))
+        except Exception:
+            pass
+    return urls
+
+
 def _save_output(step_id: str, run_id: str, content: str, agent_id: str):
     from .config import STEP_OUTPUT_FILES
     output_files = STEP_OUTPUT_FILES.get(step_id, [])
@@ -328,7 +352,7 @@ _OVERLAY_DIV = '<div class="overlay"></div>'
 # Canonical design values enforced at render time regardless of what the agent wrote
 _DESIGN_CSS_PATCHES = [
     (r'\.headline-block\s*\{[^}]*\}', '.headline-block { padding: 0 160px 128px; text-align: center; }'),
-    (r'\bh1\s*\{[^}]*\}', 'h1 { font-size: 49px; font-weight: 800; color: #FFFFFF; line-height: 1.15; max-height: 240px; overflow: hidden; }'),
+    (r'\bh1\s*\{[^}]*\}', 'h1 { font-size: 53px; font-weight: 800; color: #FFFFFF; line-height: 1.15; max-height: 260px; overflow: hidden; }'),
     (r'\.footer\s*\{[^}]*\}', '.footer { width: 100%; background: transparent; display: flex; align-items: center; justify-content: space-between; padding: 20px 48px 80px; }'),
     (r'\.footer-cta\s*\{[^}]*\}', '.footer-cta { font-size: 22px; font-weight: 400; color: #FFFFFF; letter-spacing: 0.12em; text-transform: uppercase; }'),
     (r'\.footer-arrow\s*\{[^}]*\}', '.footer-arrow { font-size: 36px; font-weight: 700; vertical-align: middle; }'),
@@ -372,6 +396,28 @@ def _ensure_gradient_overlay(html: str) -> str:
     html = _re.sub(r'<p[^>]*class=["\'][^"\']*subtitle[^"\']*["\'][^>]*>.*?</p>', '', html, flags=_re.DOTALL)
 
     return html
+
+
+def _record_used_bg_url(run_id: str, url: str) -> None:
+    """Append background image URL to squad _memory/used-bg-images.json."""
+    import json as _json
+    try:
+        memory_dir = get_run_dir(run_id).parent.parent / "_memory"
+        memory_dir.mkdir(parents=True, exist_ok=True)
+        used_path = memory_dir / "used-bg-images.json"
+        existing: list = []
+        if used_path.exists():
+            try:
+                existing = _json.loads(used_path.read_text(encoding="utf-8"))
+            except Exception:
+                existing = []
+        # Normalize URL: strip query params for dedup (same photo, different sizes)
+        base_url = url.split("?")[0]
+        if not any(e.get("base_url") == base_url for e in existing):
+            existing.append({"url": url, "base_url": base_url})
+            used_path.write_text(_json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        print(f"[designer] failed to record used bg url: {e}")
 
 
 def _patch_html_paths(html: str, run_id: str) -> str:
@@ -421,6 +467,8 @@ def _patch_html_paths(html: str, run_id: str) -> str:
                 with _urlreq.urlopen(req, timeout=15) as resp:
                     dst_bg.write_bytes(resp.read())
                 print(f"[designer] downloaded background image → img-bg.jpg")
+                # Record URL so agent avoids repeating it
+                _record_used_bg_url(run_id, bg_url)
             except Exception as e:
                 print(f"[designer] failed to download bg image: {e}")
             if dst_bg.exists():

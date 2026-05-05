@@ -34,10 +34,10 @@ Colors:
 
 Typography:
   Family:     'Montserrat', sans-serif (Google Fonts @import)
-  Headline:   49px / font-weight 800 / line-height 1.15 / text-align center / max-height 240px (overflow hidden)
+  Headline:   53px / font-weight 800 / line-height 1.15 / text-align center / max-height 260px (overflow hidden)
   Subtitle:   PROIBIDO — o card tem apenas a headline. Nunca adicionar subtítulo, tagline ou qualquer texto secundário abaixo do h1.
   Footer CTA: 22px / font-weight 400 / letter-spacing 0.12em / uppercase
-  Footer seta: ↓ em <span class="footer-arrow"> — 28px / font-weight 700 (maior e mais grossa que o texto)
+  Footer seta: ↓ em <span class="footer-arrow"> — 36px / font-weight 700 (maior e mais grossa que o texto)
 
 Spacing:
   Lateral margin: 160px (caixa de texto estreita para melhor quebra de linha)
@@ -99,18 +99,36 @@ O card tem 3 camadas:
 
 > **Nota sobre o caminho da logo:** Antes de renderizar, copiar `_opensquad/assets/logo-doctorcreator-cropped.png` para `output/{run-id}/design/logo-doctorcreator.png` e referenciar no HTML como `./logo-doctorcreator.png` (mesma pasta do `card.html`). Não usar paths absolutos `file://` — o espaço em "conteudo interno" quebra o load no Chromium.
 
-### 3. Escolher / descrever a foto de fundo
+### 3. Escolher a foto de fundo
 
-Usar a descrição do visual fornecida pelo Carlos Cópia. A foto deve ser:
-- **Visualmente impactante e diretamente relacionada ao tema do título** — quem vê deve entender o assunto instantaneamente
-- **NÃO precisa ter pessoa** — imagens microscópicas, ilustrações científicas 3D, células, órgãos, equipamentos médicos de perto são excelentes escolhas. O que importa é o impacto visual e a conexão com o tema
-- **Sujeito principal centralizado e em destaque** — preenchendo o frame com cor, textura e detalhe
-- **Alta saturação, contraste e fundo escuro/dramático** — funciona melhor com o overlay gradiente. Exemplos ideais: células cancerígenas 3D em roxo/vermelho vibrante, glóbulos vermelhos com fundo escuro, scanner cerebral iluminado, DNA helix colorido
-- **Evitar absolutamente**: fundo branco ou cinza lavado, imagem genérica de pessoa no computador ou digitando, foto sem cor ou sem expressão visual, imagem que não remeta claramente ao tema do título
+A foto deve ser **específica ao tema do título**, visualmente impactante e com fundo escuro natural. Seguir a tabela abaixo para mapear o tema à imagem certa.
 
-**Critério obrigatório de busca:** usar termos em inglês altamente específicos e visuais (ex: para "câncer de pâncreas": `pancreatic cancer cell 3d render`, `cancer tumor microscope dark background`; para "glóbulos/sangue": `red blood cells dark dramatic`, `hemoglobin microscope saturated`; para "IA médica": `neural network brain scan glowing`, `AI medical scan futuristic`). Sempre priorizar imagens com fundo escuro natural e cores saturadas.
+#### Tabela de referência visual por tema
 
-**Se a foto precisar ser buscada:** usar WebSearch para encontrar a URL direta de uma imagem do Unsplash ou Pexels. **Usar a URL direta no atributo `src` da tag `<img class="bg">` — ex: `src="https://images.unsplash.com/photo-XXXX?w=1080&h=1350&fit=crop&crop=center"`**. NÃO usar `./img-bg.jpg` — o agente não consegue baixar arquivos binários, e a referência local ficará quebrada.
+| Tema do título | Termos de busca (inglês) | Exemplos de imagem ideal |
+|---|---|---|
+| Câncer / tumor / células | `cancer cell 3d microscope dark`, `tumor cells fluorescent microscopy` | Células cancerígenas 3D em vermelho/roxo vibrante sobre fundo escuro |
+| Sangue / glóbulos / anemia | `red blood cells dark dramatic`, `blood cells microscope close` | Glóbulos vermelhos saturados com fundo escuro |
+| Hospital / UTI / sala cirúrgica | `operating room dramatic lighting`, `ICU hospital dramatic dark`, `surgery room night` | Interior de sala cirúrgica com iluminação forte, equipamentos em evidência — NÃO teto branco |
+| Universidade / pesquisa / estudo | `medical research lab dramatic`, `hospital building night facade`, `scientists laboratory dark` | Laboratório de pesquisa com equipamentos ou fachada dramática de hospital moderno |
+| IA / algoritmo / diagnóstico digital | `AI brain scan neural dark`, `medical AI glowing scan`, `brain MRI neon dark background` | Scanner cerebral iluminado, chip neural, visualização de dados médicos escura |
+| Cirurgia / procedimento | `surgeon operating dramatic`, `surgical gloves close dark`, `laparoscopy surgical tools` | Luvas cirúrgicas em ação, ferramentas cirúrgicas close, sala de cirurgia |
+| Medicamento / fármaco / tratamento | `pills medication dark background`, `syringe medicine dramatic`, `pharmaceutical drugs close` | Comprimidos com foco artístico, seringa close, ampolas iluminadas |
+| Coração / cardiologia | `heart anatomy dramatic`, `cardiac surgery close`, `heartbeat monitor dark` | Anatomia do coração vibrante, monitor cardíaco com fundo escuro |
+| Cérebro / neurologia | `brain neuron dark glowing`, `neuroscience brain scan`, `neuron synapse colorful dark` | Neurônios iluminados, MRI cerebral, sinapses coloridas |
+| Urgência / emergência | `ambulance night rain dramatic`, `emergency room dramatic lighting` | Ambulância na chuva com luzes vermelhas, corredor de emergência |
+| DNA / genética | `DNA double helix dark colorful`, `genetic code microscope` | Hélice de DNA colorida sobre fundo escuro |
+| Diagnóstico / exame | `medical test tube laboratory`, `blood test close dramatic`, `biopsy medical close` | Tubos de ensaio, biópsia, close de exame laboratorial |
+
+#### Regras absolutas
+
+- **PROIBIDO**: teto branco de hospital, mãos digitando no teclado, pessoa genérica no computador, fundo branco ou cinza lavado, dashboard genérico de dados sem contexto médico
+- **Obrigatório**: fundo escuro ou ambiente dramático, sujeito centralizado e em destaque, cores saturadas que remetem diretamente ao tema
+- Se o título menciona uma universidade específica (Harvard, UChicago etc.): usar imagem de **sala cirúrgica**, **laboratório** ou **equipamento médico high-tech** — não foto da fachada do prédio
+
+**Antes de escolher a URL:** verificar o arquivo `squads/conteudo-social-medicos/_memory/used-bg-images.json`. Se existir, NÃO usar nenhuma URL cujo `base_url` (antes do `?`) já esteja listado — escolher uma foto diferente.
+
+**Se a foto precisar ser buscada:** usar WebSearch para encontrar a URL direta de uma imagem do Unsplash ou Pexels. **Usar a URL direta no atributo `src` da tag `<img class="bg">` — ex: `src="https://images.unsplash.com/photo-XXXX?w=1080&h=1350&fit=crop&crop=center"`**. NÃO usar `./img-bg.jpg` — o agente não consegue baixar arquivos binários.
 
 **Se for usar uma imagem já disponível localmente em `output/{run-id}/design/` (ex: `img-bg.jpg` baixado pelo pipeline):** referenciar com caminho relativo `./img-bg.jpg`.
 
@@ -133,7 +151,7 @@ Estrutura base:
   .overlay { position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,1.0) 0%, rgba(0,0,0,1.0) 30%, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.4) 62%, rgba(0,0,0,0.0) 75%); }
   .content { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; justify-content: flex-end; }
   .headline-block { padding: 0 160px 128px; text-align: center; }
-  h1 { font-size: 49px; font-weight: 800; color: #FFFFFF; line-height: 1.15; max-height: 240px; overflow: hidden; }
+  h1 { font-size: 53px; font-weight: 800; color: #FFFFFF; line-height: 1.15; max-height: 260px; overflow: hidden; }
   .footer { width: 100%; background: transparent; display: flex; align-items: center; justify-content: space-between; padding: 20px 48px 80px; }
   .footer img { height: 110px; width: auto; }
   .footer-cta { font-size: 22px; font-weight: 400; color: #FFFFFF; letter-spacing: 0.12em; text-transform: uppercase; }

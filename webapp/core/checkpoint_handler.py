@@ -11,16 +11,20 @@ from .file_manager import read_artifact, list_design_files, get_card_html_url, g
 from .config import SQUAD_ROOT
 
 _USED_STORIES_PATH = SQUAD_ROOT / "_memory" / "used-stories.json"
+_SEEN_STORIES_PATH = SQUAD_ROOT / "_memory" / "seen-stories.json"
 
 
 def _load_used_urls() -> set[str]:
-    try:
-        if _USED_STORIES_PATH.exists():
-            data = json.loads(_USED_STORIES_PATH.read_text(encoding="utf-8"))
-            return {entry.get("url", "") for entry in data if entry.get("url")}
-    except Exception:
-        pass
-    return set()
+    """URLs aprovadas (publicadas) + URLs já mostradas ao usuário (vistas mas recusadas)."""
+    urls: set[str] = set()
+    for path in (_USED_STORIES_PATH, _SEEN_STORIES_PATH):
+        try:
+            if path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                urls.update(entry.get("url", "") for entry in data if entry.get("url"))
+        except Exception:
+            pass
+    return urls
 
 
 def _strip_code_fences(text: str) -> str:
@@ -101,6 +105,7 @@ def _story_selection(run_id: str) -> dict:
         "stories": stories,
         "actions": [
             {"action": "select", "label": "Confirmar notícia selecionada", "style": "primary"},
+            {"action": "redo_search", "label": "🔄 Buscar novas notícias", "style": "secondary"},
         ],
     }
 
