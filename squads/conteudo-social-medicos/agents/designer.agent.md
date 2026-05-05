@@ -34,14 +34,15 @@ Colors:
 
 Typography:
   Family:     'Montserrat', sans-serif (Google Fonts @import)
-  Headline:   47px / font-weight 800 / line-height 1.15 / text-align center
-  Subtitle:   34px / font-weight 500 / text-align center / opacity 0.88
+  Headline:   49px / font-weight 800 / line-height 1.15 / text-align center / max-height 240px (overflow hidden)
+  Subtitle:   PROIBIDO — o card tem apenas a headline. Nunca adicionar subtítulo, tagline ou qualquer texto secundário abaixo do h1.
   Footer CTA: 22px / font-weight 400 / letter-spacing 0.12em / uppercase
+  Footer seta: ↓ em <span class="footer-arrow"> — 28px / font-weight 700 (maior e mais grossa que o texto)
 
 Spacing:
   Lateral margin: 160px (caixa de texto estreita para melhor quebra de linha)
-  Headline bottom padding: 220px above footer (título posicionado mais alto no card)
-  Footer padding: 20px top / 48px lateral / 64px bottom (sem height fixo — logo afastada do rodapé)
+  Headline bottom padding: 130px above footer (distância menor entre título e logo)
+  Footer padding: 20px top / 48px lateral / 80px bottom (sem height fixo — logo afastada do rodapé)
 
 Logo:
   Arquivo: _opensquad/assets/logo-doctorcreator-cropped.png  (versão recortada — usar SEMPRE esta, não a original)
@@ -131,12 +132,12 @@ Estrutura base:
   .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .overlay { position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,1.0) 0%, rgba(0,0,0,1.0) 30%, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.4) 62%, rgba(0,0,0,0.0) 75%); }
   .content { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; justify-content: flex-end; }
-  .headline-block { padding: 0 160px 218px; text-align: center; }
-  h1 { font-size: 47px; font-weight: 800; color: #FFFFFF; line-height: 1.15; }
-  .subtitle { font-size: 34px; font-weight: 500; color: rgba(255,255,255,0.88); margin-top: 16px; }
-  .footer { width: 100%; background: transparent; display: flex; align-items: center; justify-content: space-between; padding: 20px 48px 69px; }
+  .headline-block { padding: 0 160px 128px; text-align: center; }
+  h1 { font-size: 49px; font-weight: 800; color: #FFFFFF; line-height: 1.15; max-height: 240px; overflow: hidden; }
+  .footer { width: 100%; background: transparent; display: flex; align-items: center; justify-content: space-between; padding: 20px 48px 80px; }
   .footer img { height: 110px; width: auto; }
   .footer-cta { font-size: 22px; font-weight: 400; color: #FFFFFF; letter-spacing: 0.12em; text-transform: uppercase; }
+  .footer-arrow { font-size: 36px; font-weight: 700; vertical-align: middle; }
   .accent { color: #92adff; }
 </style>
 </head>
@@ -146,11 +147,10 @@ Estrutura base:
   <div class="content">
     <div class="headline-block">
       <h1>[HEADLINE COM <span class="accent">PALAVRAS</span> EM DESTAQUE]</h1>
-      <!-- <p class="subtitle">[SUBTÍTULO SE HOUVER]</p> -->
     </div>
     <div class="footer">
       <img src="./logo-doctorcreator.png" alt="DoctorCreator">
-      <span class="footer-cta">SAIBA MAIS NA LEGENDA ↓</span>
+      <span class="footer-cta">SAIBA MAIS NA LEGENDA <span class="footer-arrow">↓</span></span>
     </div>
   </div>
 </body>
@@ -185,6 +185,7 @@ Pronto para aprovação e publicação.
 5. Omitir o gradiente de contraste — texto sobre foto sem overlay causa ilegibilidade
 6. Omitir a logo no footer
 7. Omitir "SAIBA MAIS NA LEGENDA ↓" no footer
+8. **NUNCA adicionar subtítulo, tagline ou qualquer texto abaixo do h1** — o bloco de headline contém APENAS o `<h1>`. Sem `<p>`, sem `<span>` de subtítulo, sem nenhum elemento secundário.
 8. Usar viewport diferente de 1080x1350
 9. Incluir links externos no HTML (exceto Google Fonts @import)
 10. Usar posicionamento absoluto para layout principal (usar Flexbox)

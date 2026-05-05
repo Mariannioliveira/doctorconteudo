@@ -325,9 +325,19 @@ _GRADIENT = "linear-gradient(to top, rgba(0,0,0,1.0) 0%, rgba(0,0,0,1.0) 30%, rg
 _OVERLAY_CSS = f"  .overlay {{ position: absolute; inset: 0; z-index: 1; background: {_GRADIENT}; }}"
 _OVERLAY_DIV = '<div class="overlay"></div>'
 
+# Canonical design values enforced at render time regardless of what the agent wrote
+_DESIGN_CSS_PATCHES = [
+    (r'\.headline-block\s*\{[^}]*\}', '.headline-block { padding: 0 160px 128px; text-align: center; }'),
+    (r'\bh1\s*\{[^}]*\}', 'h1 { font-size: 49px; font-weight: 800; color: #FFFFFF; line-height: 1.15; max-height: 240px; overflow: hidden; }'),
+    (r'\.footer\s*\{[^}]*\}', '.footer { width: 100%; background: transparent; display: flex; align-items: center; justify-content: space-between; padding: 20px 48px 80px; }'),
+    (r'\.footer-cta\s*\{[^}]*\}', '.footer-cta { font-size: 22px; font-weight: 400; color: #FFFFFF; letter-spacing: 0.12em; text-transform: uppercase; }'),
+    (r'\.footer-arrow\s*\{[^}]*\}', '.footer-arrow { font-size: 36px; font-weight: 700; vertical-align: middle; }'),
+    (r'\.subtitle\s*\{[^}]*\}', ''),  # remove any subtitle CSS
+]
+
 
 def _ensure_gradient_overlay(html: str) -> str:
-    """Enforce the canonical strong gradient overlay — always replace any existing .overlay CSS."""
+    """Enforce gradient overlay and canonical design CSS values at render time."""
     import re as _re
 
     # Always replace the .overlay CSS rule with the authoritative strong gradient
@@ -349,6 +359,17 @@ def _ensure_gradient_overlay(html: str) -> str:
         )
         if _OVERLAY_DIV not in html:
             html = _re.sub(r'(<body[^>]*>)', r'\1\n  ' + _OVERLAY_DIV, html, count=1)
+
+    # Enforce canonical design values (font size, spacing, arrow, no subtitle)
+    for pattern, replacement in _DESIGN_CSS_PATCHES:
+        html = _re.sub(pattern, replacement, html)
+
+    # Ensure .footer-arrow class exists in CSS (agent may omit it)
+    if ".footer-arrow" not in html:
+        html = html.replace("</style>", "  .footer-arrow { font-size: 36px; font-weight: 700; vertical-align: middle; }\n</style>", 1)
+
+    # Remove any subtitle elements from the body
+    html = _re.sub(r'<p[^>]*class=["\'][^"\']*subtitle[^"\']*["\'][^>]*>.*?</p>', '', html, flags=_re.DOTALL)
 
     return html
 
@@ -394,14 +415,14 @@ def _patch_html_paths(html: str, run_id: str) -> str:
         bg_url = bg_match.group(1)
         if bg_url.startswith("http"):
             dst_bg = design_dir / "img-bg.jpg"
-            if not dst_bg.exists():
-                try:
-                    req = _urlreq.Request(bg_url, headers={"User-Agent": "Mozilla/5.0"})
-                    with _urlreq.urlopen(req, timeout=15) as resp:
-                        dst_bg.write_bytes(resp.read())
-                    print(f"[designer] downloaded background image → img-bg.jpg")
-                except Exception as e:
-                    print(f"[designer] failed to download bg image: {e}")
+            # Always re-download so "ajustar imagem" picks a fresh photo
+            try:
+                req = _urlreq.Request(bg_url, headers={"User-Agent": "Mozilla/5.0"})
+                with _urlreq.urlopen(req, timeout=15) as resp:
+                    dst_bg.write_bytes(resp.read())
+                print(f"[designer] downloaded background image → img-bg.jpg")
+            except Exception as e:
+                print(f"[designer] failed to download bg image: {e}")
             if dst_bg.exists():
                 html = html.replace(f'"{bg_url}"', '"./img-bg.jpg"').replace(f"'{bg_url}'", '"./img-bg.jpg"')
 
