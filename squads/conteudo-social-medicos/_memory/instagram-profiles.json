@@ -1,0 +1,44 @@
+[
+  {
+    "username": "ofitfeed",
+    "url": "https://www.instagram.com/ofitfeed/",
+    "focus": "wellness, fitness, saúde — referência de temas virais. NUNCA copiar headline ou imagem diretamente.",
+    "active": true
+  },
+  {
+    "username": "innovation",
+    "url": "https://www.instagram.com/innovation/",
+    "focus": "inovação, tecnologia, tendências globais",
+    "active": true
+  },
+  {
+    "username": "_brenopfister",
+    "url": "https://www.instagram.com/_brenopfister/",
+    "focus": "saúde, wellness, comportamento saudável",
+    "active": true
+  },
+  {
+    "username": "fittinsider",
+    "url": "https://www.instagram.com/fittinsider/",
+    "focus": "fitness, performance, tendências de treino e bem-estar",
+    "active": true
+  },
+  {
+    "username": "invogasaude",
+    "url": "https://www.instagram.com/invogasaude/",
+    "focus": "saúde, inovação em saúde, tecnologia médica",
+    "active": true
+  },
+  {
+    "username": "medicina.explica",
+    "url": "https://www.instagram.com/medicina.explica/",
+    "focus": "medicina, saúde, educação médica — identificar temas em alta na medicina",
+    "active": true
+  },
+  {
+    "username": "curioverso_",
+    "url": "https://www.instagram.com/curioverso_/",
+    "focus": "ciência, curiosidades, inovação — identificar temas científicos viralizando",
+    "active": true
+  }
+]

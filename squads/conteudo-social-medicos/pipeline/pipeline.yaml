@@ -15,12 +15,19 @@ steps:
     type: checkpoint
     file: steps/step-00-research-period.md
 
+  - id: step-00b
+    name: "Scraping de Instagram"
+    type: agent
+    agent: instagram-scout
+    file: steps/step-00b-instagram-scrape.md
+    depends_on: step-00
+
   - id: step-01
     name: "Pesquisa de Notícias"
     type: agent
     agent: pesquisador
     file: steps/step-01-search-news.md
-    depends_on: step-00
+    depends_on: step-00b
 
   - id: step-02
     name: "Escolha do Tema"
@@ -35,18 +42,11 @@ steps:
     file: steps/step-03-create-content.md
     depends_on: step-02
 
-  - id: step-04
-    name: "Revisão de Qualidade"
-    type: agent
-    agent: revisor
-    file: steps/step-04-quality-check.md
-    depends_on: step-03
-
   - id: step-05
     name: "Aprovação do Conteúdo"
     type: checkpoint
     file: steps/step-05-approve-content.md
-    depends_on: step-04
+    depends_on: step-03
 
   - id: step-06
     name: "Design do Card"

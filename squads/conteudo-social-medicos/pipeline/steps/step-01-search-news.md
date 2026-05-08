@@ -6,19 +6,41 @@ agent: pesquisador
 depends_on: step-00
 ---
 
-# Step 01: Dr. Scout — Pesquisa de Notícias Médicas
+# Step 01: Dr. Scout — Pesquisa de Notícias
 
 ## Para o Pipeline Runner
 
-Executar o Dr. Scout para rastrear as notícias mais relevantes de medicina e tecnologia na saúde das últimas 2-4 semanas.
+Executar o Dr. Scout com **3 pilares de busca** para rastrear notícias de saúde, wellness, inovação e IA:
 
-O Pesquisador deve fazer **pelo menos 4 buscas** com ângulos diferentes e retornar as 5-7 notícias com maior potencial de engajamento para o público da Doctor Creator (médicos que buscam autoridade digital).
+**Pilar 1 — Instagram como base:** ler `instagram-topics.md`, buscar notícias reais sobre os temas em alta nos perfis rastreados (pelo menos 3 buscas)
 
-## Inputs
+**Pilar 2 — Scraping dos sites de referência:** web_fetch direto em G1, Exame, Metropolitana e NY Post para extrair artigos recentes (pelo menos 4 fetches)
 
-- `research_period` → período de busca definido no Step 00 (7, 15 ou 30 dias) — usar para filtrar notícias e configurar os filtros de data nas buscas
-- `_opensquad/_memory/company.md` → contexto da Doctor Creator e público-alvo
-- `_opensquad/_memory/preferences.md` → idioma de output
+**Pilar 3 — Busca geral:** web_search com termos variados de saúde/wellness/inovação/IA na internet em geral (pelo menos 5 buscas)
+
+Retornar 5-7 notícias ranqueadas que passem no filtro central (saúde/wellness/inovação/IA — excluir política, entretenimento, economia geral).
+
+## Inputs — O runner DEVE ler e injetar no prompt do subagente
+
+Antes de despachar o subagente, o pipeline runner deve:
+
+1. Ler `squads/conteudo-social-medicos/_memory/seen-stories.json` e incluir o conteúdo completo no prompt como:
+   ```
+   === SEEN_STORIES (não repetir nenhuma dessas URLs) ===
+   {conteúdo do arquivo}
+   ===
+   ```
+
+2. Ler `squads/conteudo-social-medicos/_memory/instagram-topics.md` e incluir no prompt como:
+   ```
+   === INSTAGRAM_TOPICS (notícias dos perfis de referência) ===
+   {conteúdo do arquivo}
+   ===
+   ```
+
+3. Incluir `research_period` → período definido no Step 00 (7, 15 ou 30 dias)
+
+**O subagente NÃO tem acesso a arquivos locais** — todo contexto deve ser injetado no prompt pelo runner. Nunca instruir o subagente a fazer web_fetch em arquivos locais.
 
 ## Expected Output
 

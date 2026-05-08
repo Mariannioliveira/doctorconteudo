@@ -2,14 +2,14 @@
 step: "05"
 name: "Aprovação do Conteúdo"
 type: checkpoint
-depends_on: step-04
+depends_on: step-03
 ---
 
 # Step 05: Checkpoint — Aprovação do Conteúdo
 
 ## Para o Pipeline Runner
 
-Exibir o conteúdo criado pelo Carlos Cópia e o veredicto da Vera Veredito para aprovação do usuário.
+Exibir o conteúdo criado pelo Carlos Cópia para aprovação do usuário.
 
 ## Como Apresentar
 
@@ -17,8 +17,6 @@ Exibir o conteúdo criado pelo Carlos Cópia e o veredicto da Vera Veredito para
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✍️ Conteúdo pronto para aprovação
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Veredicto da Vera: {APROVAR / APROVAR COM RESSALVAS / REJEITAR}
 
 [Headline do card]
 [Legenda completa]

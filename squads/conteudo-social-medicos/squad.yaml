@@ -23,6 +23,11 @@ skills:
   - instagram-publisher
 
 agents:
+  - id: instagram-scout
+    name: "Insta Scout"
+    icon: "📸"
+    path: agents/instagram-scout.agent.md
+
   - id: pesquisador
     name: "Dr. Scout"
     icon: "🔎"
@@ -32,11 +37,6 @@ agents:
     name: "Carlos Cópia"
     icon: "✍️"
     path: agents/redator.agent.md
-
-  - id: revisor
-    name: "Vera Veredito"
-    icon: "🔍"
-    path: agents/revisor.agent.md
 
   - id: designer
     name: "Marco Design"

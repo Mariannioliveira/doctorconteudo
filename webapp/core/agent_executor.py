@@ -215,10 +215,23 @@ def _collect_artifacts_context(step_id: str, run_id: str) -> str:
 def _get_output_instructions(step_id: str) -> str:
     instructions = {
         "step-01": (
-            "Execute a pesquisa de notícias médicas usando as ferramentas de busca disponíveis.\n"
-            "Retorne o resultado em formato YAML exatamente como especificado no seu Output Format:\n"
-            "```yaml\nranked_stories:\n  - rank: 1\n    title: ...\n```\n"
-            "Retorne APENAS o YAML, sem texto adicional antes ou depois."
+            "Os artigos acima foram pré-buscados pelo sistema. SUA ÚNICA TAREFA é:\n"
+            "1. Filtrar os artigos que passam no filtro central (saúde, wellness, inovação, IA — excluir política, entretenimento, economia geral)\n"
+            "2. Excluir qualquer URL presente na lista de NOTÍCIAS JÁ MOSTRADAS\n"
+            "3. Ranquear os artigos restantes do mais ao menos interessante\n"
+            "4. Retornar os melhores 10 em formato YAML\n\n"
+            "NÃO faça buscas adicionais. NÃO invente informações. Use apenas os artigos fornecidos acima.\n\n"
+            "Retorne APENAS o YAML abaixo, sem nenhum texto antes ou depois:\n"
+            "```yaml\nranked_stories:\n  - rank: 1\n    title: \"Título completo\"\n"
+            "    summary: \"2-3 frases objetivas\"\n"
+            "    source: \"Nome do veículo\"\n"
+            "    url: \"https://url-exata.com\"\n"
+            "    date: \"YYYY-MM-DD\"\n"
+            "    viral_potential_score: 7.5\n"
+            "    category: \"wellness | saúde | inovação | startup | mercado | tecnologia | ia\"\n"
+            "    why_interesting: \"Por que o público de saúde e wellness vai se importar\"\n"
+            "    key_data: \"O dado mais forte da notícia\"\n"
+            "```"
         ),
         "step-03": (
             "Crie o conteúdo completo para a card única no Instagram.\n"

@@ -30,7 +30,8 @@ No HTML, referenciar como `./logo-doctorcreator.png`.
 
 ## Expected Output
 
-- `design/card.html` → HTML completo do card
+- `design/bg-image.jpg` → imagem de fundo gerada via Gemini (image-generator --mode production)
+- `design/card.html` → HTML completo do card (referencia `./bg-image.jpg` e `./logo-doctorcreator.png`)
 - `design/logo-doctorcreator.png` → cópia local da logo (referenciada pelo HTML)
 - `design/card.jpg` → screenshot renderizado via Playwright
 

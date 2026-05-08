@@ -84,9 +84,9 @@ FOOTER CTA
   - `=== DESCRIÇÃO DO VISUAL ===` → base para o prompt de imagem
 - `_opensquad/_memory/company.md` → identidade da Doctor Creator
 
-### 2. Gerar imagem de fundo via Pollinations.ai
+### 2. Gerar imagem de fundo via image-generator (Gemini)
 
-A imagem é **sempre gerada por IA** — nunca buscar em banco de imagens.
+A imagem é **sempre gerada por IA via script image-generator** — nunca via URL externa, nunca Pollinations.ai.
 
 #### Construção do prompt
 
@@ -123,18 +123,19 @@ Regras obrigatórias para todo prompt:
 | Legislação / saúde pública | `gavel medical symbols glow dark background, cinematic, dramatic lighting, photorealistic` |
 | Fitness / movimento / academia | `athlete training dramatic gym lighting, dark motivational cinematic, high contrast, photorealistic ultra detailed` |
 
-#### Como montar a URL
+#### Como gerar a imagem
 
-```
-https://image.pollinations.ai/prompt/{PROMPT_URL_ENCODED}?width=1080&height=1350&nologo=true&seed={SEED}
+```bash
+python3 "skills/image-generator/scripts/generate.py" \
+  --prompt "{PROMPT_EM_INGLÊS}" \
+  --output "squads/conteudo-social-medicos/output/{run-id}/design/bg-image.jpg" \
+  --mode production
 ```
 
-- Espaços → `%20`, vírgulas → `%2C`
-- `{SEED}` = número inteiro aleatório entre 1000 e 9999 (para unicidade entre cards)
-- Exemplo:
-```
-https://image.pollinations.ai/prompt/glowing%20neural%20network%20with%20medical%20data%20streams%2C%20futuristic%20dark%20lab%2C%20neon%20blue%20cyan%20accents%2C%20cinematic%20photorealistic%2C%20ultra%20detailed?width=1080&height=1350&nologo=true&seed=4721
-```
+- `{PROMPT_EM_INGLÊS}` = prompt escolhido na tabela acima, adaptado ao tema da notícia
+- Usar **sempre `--mode production`** para máxima qualidade (modelo Gemini)
+- Salvar como `bg-image.jpg` dentro da pasta `design/` do run atual
+- No HTML, referenciar como `./bg-image.jpg` (nunca path absoluto)
 
 ### 3. Estrutura do HTML
 
@@ -160,7 +161,7 @@ https://image.pollinations.ai/prompt/glowing%20neural%20network%20with%20medical
 </style>
 </head>
 <body>
-  <img class="bg" src="[URL_POLLINATIONS]" alt="">
+  <img class="bg" src="./bg-image.jpg" alt="">
   <div class="overlay"></div>
   <div class="content">
     <div class="headline-block">
@@ -183,21 +184,31 @@ https://image.pollinations.ai/prompt/glowing%20neural%20network%20with%20medical
 🎨 Card criado com sucesso
 
 ARQUIVO GERADO:
+- output/{run-id}/design/bg-image.jpg  (imagem gerada via Gemini)
 - output/{run-id}/design/card.html
 - output/{run-id}/design/card.jpg
 
 DESIGN SYSTEM APLICADO:
 - Fonte: Montserrat 800 / 53px (headline)
 - Acento #92adff em: [palavras destacadas]
-- Imagem AI: [prompt completo usado]
-- Seed: [número usado]
+- Imagem AI (Gemini): [prompt completo usado]
 - Logo: logo-doctorcreator.png (cópia local, height 110px)
 
-💬 Não gostou da imagem? Descreva como prefere e eu recrio agora.
+💬 Não gostou da imagem? Clique em "Alterar imagem" ou descreva como prefere.
    Exemplo: "quero algo com equipamento médico futurista em tons azuis"
 ```
 
-Se o usuário descrever uma imagem diferente: gerar novo prompt em inglês, nova seed, nova URL Pollinations.ai, atualizar `card.html` e regenerar `card.jpg`.
+**Quando o usuário pedir "Alterar imagem" ou descrever uma imagem diferente:**
+1. Montar novo prompt em inglês (variação do tema atual ou conforme descrição do usuário)
+2. Rodar o script novamente:
+   ```bash
+   python3 "skills/image-generator/scripts/generate.py" \
+     --prompt "{NOVO_PROMPT}" \
+     --output "squads/conteudo-social-medicos/output/{run-id}/design/bg-image.jpg" \
+     --mode production
+   ```
+3. O HTML já referencia `./bg-image.jpg` — basta re-renderizar o card com Playwright
+4. Entregar o novo `card.jpg`
 
 ## Anti-Patterns
 
@@ -217,16 +228,18 @@ Se o usuário descrever uma imagem diferente: gerar novo prompt em inglês, nova
 13. **Desenhar "cenas" em CSS** — nada de `div`s simulando médico, jaleco, equipamento. Apenas `<img class="bg">` + overlay + conteúdo
 14. **Usar JavaScript no HTML** — sem `onerror`, sem `onload`, sem `<script>`
 15. **Inserir camada de fallback decorativo** (`.bg-fallback`, `.scene`) — se imagem não carregar, o fundo `#0a0a0a` já garante leitura mínima
-16. **Usar `./img-bg.jpg` como src** — sempre usar a URL gerada pela Pollinations.ai
-17. **Buscar imagem no Unsplash, Pexels ou qualquer banco** — sempre gerar via Pollinations.ai
-18. Repetir uma URL de Pollinations.ai de cards anteriores — usar seed diferente a cada geração
+16. **Usar URL externa como src da imagem de fundo** — sempre usar `./bg-image.jpg` (arquivo local gerado pelo script)
+17. **Buscar imagem no Unsplash, Pexels, Pollinations ou qualquer serviço externo** — sempre gerar via `skills/image-generator` com `--mode production`
+18. Reutilizar `bg-image.jpg` de um card anterior — sempre regerar ao pedir "alterar imagem" **ou "ajustar design"**. Qualquer chamada de retorno após o checkpoint de aprovação exige nova geração de imagem via script
 
 **Sempre fazer:**
 1. Seguir design system fixo sem variações
 2. Usar `object-fit: cover` na foto de fundo
-3. Copiar `_opensquad/assets/logo-doctorcreator-cropped.png` → `output/{run-id}/design/logo-doctorcreator.png` e referenciar como `./logo-doctorcreator.png`
-4. Usar seed aleatória diferente a cada card para garantir imagem única
+3. Rodar `python3 "skills/image-generator/scripts/generate.py"` com `--mode production` para gerar `bg-image.jpg`
+4. Copiar `_opensquad/assets/logo-doctorcreator-cropped.png` → `output/{run-id}/design/logo-doctorcreator.png` e referenciar como `./logo-doctorcreator.png`
 5. Verificar que a headline não ultrapassa `max-height: 260px` — se sim, reformular para caber em 2-3 linhas
+6. Quando pedir "alterar imagem" **ou "ajustar design"**: rodar o script novamente com novo prompt, re-renderizar o card
+7. **Toda vez que o Designer for chamado de volta após o checkpoint de aprovação (step-07), a primeira ação obrigatória é regenerar `bg-image.jpg` via script — sem exceção**
 
 ## Quality Criteria
 
@@ -234,7 +247,7 @@ Se o usuário descrever uma imagem diferente: gerar novo prompt em inglês, nova
 - [ ] Google Fonts @import Montserrat (400, 700, 800)
 - [ ] Headline: Montserrat 800, **53px**, centralizada, branca
 - [ ] Palavras de destaque com `class="accent"` (`color: #92adff`)
-- [ ] Foto de fundo via Pollinations.ai com seed única, `object-fit: cover`
+- [ ] Imagem de fundo gerada via `image-generator --mode production` e salva como `./bg-image.jpg`, `object-fit: cover`
 - [ ] Overlay: `linear-gradient(to top, rgba(0,0,0,1.0) 0%, rgba(0,0,0,1.0) 30%, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.4) 62%, rgba(0,0,0,0.0) 75%)`
 - [ ] `body { background: #0a0a0a }` como fallback
 - [ ] `.headline-block { padding: 0 160px 128px }`

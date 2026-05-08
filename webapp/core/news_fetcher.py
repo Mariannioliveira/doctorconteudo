@@ -9,17 +9,28 @@ from datetime import datetime, timedelta, timezone
 
 
 _SEARCH_QUERIES = [
-    "inteligência artificial medicina diagnóstico 2025 2026",
-    "IA saúde médico inovação tecnologia",
-    "medicina digital saúde tecnologia novidades",
-    "CFM resolução médica regulamentação",
-    "médico creator digital redes sociais tendências",
-    "artificial intelligence medicine healthcare news",
-    "medical AI diagnosis treatment breakthrough",
+    # Wellness puro
+    "tendência wellness bem-estar Brasil 2026",
+    "novo produto bem-estar lançamento marca wellness 2026",
+    "saúde mental bem-estar emocional novidade 2026",
+    # Saúde comportamento e medicina
+    "saúde comportamento hábito saudável pesquisa 2026",
+    "nutrição funcional alimentação saudável tendência 2026",
+    "sono recuperação saúde pesquisa novidade 2026",
+    # Inovação e mercado
+    "startup saúde wellness inovação lançamento 2026",
+    "mercado wellness suplementos crescimento tendência 2026",
+    "inovação medicina tratamento lançamento 2026",
+    # Tecnologia e IA
+    "inteligência artificial saúde diagnóstico 2026",
+    "wearable tecnologia saúde lançamento 2026",
+    # Internacional
+    "wellness trend health innovation 2026",
+    "health startup launch product 2026",
 ]
 
 
-def fetch_news(research_period_days: int = 30, max_results: int = 40) -> str:
+def fetch_news(research_period_days: int = 30, max_results: int = 80) -> str:
     """
     Fetches recent medical/AI news articles and returns them as a formatted
     markdown block ready to be injected into the researcher agent's prompt.
