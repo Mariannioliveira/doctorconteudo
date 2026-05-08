@@ -307,7 +307,14 @@ async def _handle_pipeline_event(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from core.scheduler import scheduler_loop
+    task = asyncio.create_task(scheduler_loop())
     yield
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(title="Opensquad API", lifespan=lifespan)
@@ -801,6 +808,53 @@ async def download_card(squad_code: str, run_id: str):
         filename=f"doctorcreator-{run_id}.jpg",
         headers={"Content-Disposition": f'attachment; filename="doctorcreator-{run_id}.jpg"'},
     )
+
+
+# ─────────────────────────────────────────────
+# REST — Scheduled posts
+# ─────────────────────────────────────────────
+
+@app.get("/api/scheduled-posts")
+async def get_scheduled_posts():
+    from core import scheduled_posts as sp
+    posts = sp.list_all()
+    result = []
+    for p in posts:
+        entry = dict(p)
+        try:
+            img_path = Path(p["image_path"])
+            rel = img_path.relative_to(SQUADS_ROOT)
+            entry["image_url"] = f"/squad-output/{rel.as_posix()}"
+        except Exception:
+            entry["image_url"] = None
+        result.append(entry)
+    # Most recent first
+    result.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return result
+
+
+@app.delete("/api/scheduled-posts/{post_id}")
+async def cancel_scheduled_post(post_id: str):
+    from core import scheduled_posts as sp
+    if sp.cancel(post_id):
+        return {"status": "cancelled"}
+    return JSONResponse({"error": "Post não encontrado ou já não está pendente"}, status_code=404)
+
+
+@app.post("/api/scheduled-posts/{post_id}/publish-now")
+async def publish_scheduled_now(post_id: str):
+    from core import scheduled_posts as sp
+    from core.scheduler import fire_post
+    post = sp.get_by_id(post_id)
+    if not post:
+        return JSONResponse({"error": "Post não encontrado"}, status_code=404)
+    if post["status"] not in ("pending", "failed"):
+        return JSONResponse(
+            {"error": f"Post está com status '{post['status']}' — apenas pending ou failed podem ser publicados"},
+            status_code=400,
+        )
+    asyncio.create_task(fire_post(post_id))
+    return {"status": "publishing", "post_id": post_id}
 
 
 # ─────────────────────────────────────────────

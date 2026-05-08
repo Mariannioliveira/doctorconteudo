@@ -1,13 +1,31 @@
+import { useState, useEffect } from "react";
 import { useSquadSocket } from "@/hooks/useSquadSocket";
 import { SquadSidebar } from "@/components/SquadSidebar";
 import { ChatPanel } from "@/components/ChatPanel";
 import { OfficePanel } from "@/components/OfficePanel";
 import { StatusBar } from "@/components/StatusBar";
+import { ScheduledPostsPanel } from "@/components/ScheduledPostsPanel";
 import { useSquadStore } from "@/store/useSquadStore";
 
 export function App() {
   useSquadSocket();
   const isConnected = useSquadStore((s) => s.isConnected);
+  const [showScheduled, setShowScheduled] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => {
+      fetch("/api/scheduled-posts")
+        .then((r) => r.ok ? r.json() : [])
+        .then((posts: { status: string }[]) => {
+          setPendingCount(posts.filter((p) => p.status === "pending").length);
+        })
+        .catch(() => null);
+    };
+    refresh();
+    const id = setInterval(refresh, 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <div
@@ -73,20 +91,43 @@ export function App() {
           </span>
         </span>
 
-        {/* Connection status */}
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-          <span
+        {/* Connection status + scheduled posts button */}
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={() => setShowScheduled(true)}
             style={{
-              width: 7,
-              height: 7,
-              borderRadius: "50%",
-              background: isConnected ? "var(--accent-green)" : "#64748b",
-              boxShadow: isConnected ? "0 0 6px var(--accent-green)" : undefined,
+              display: "flex", alignItems: "center", gap: 6,
+              background: "rgba(6,182,212,0.08)", border: "1px solid rgba(6,182,212,0.25)",
+              borderRadius: 8, padding: "4px 12px", cursor: "pointer",
+              fontFamily: "inherit", fontSize: 11, fontWeight: 600,
+              color: "var(--accent-cyan)", position: "relative",
             }}
-          />
-          <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>
-            {isConnected ? "conectado" : "desconectado"}
-          </span>
+          >
+            <span>📅</span>
+            <span>Programados</span>
+            {pendingCount > 0 && (
+              <span style={{
+                background: "#06b6d4", color: "#000", borderRadius: 10,
+                fontSize: 9, fontWeight: 800, padding: "1px 6px", minWidth: 16,
+                textAlign: "center",
+              }}>
+                {pendingCount}
+              </span>
+            )}
+          </button>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span
+              style={{
+                width: 7, height: 7, borderRadius: "50%",
+                background: isConnected ? "var(--accent-green)" : "#64748b",
+                boxShadow: isConnected ? "0 0 6px var(--accent-green)" : undefined,
+              }}
+            />
+            <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+              {isConnected ? "conectado" : "desconectado"}
+            </span>
+          </div>
         </div>
       </header>
 
@@ -104,6 +145,9 @@ export function App() {
 
       {/* Footer: status + start/stop controls */}
       <StatusBar />
+
+      {/* Scheduled posts modal */}
+      {showScheduled && <ScheduledPostsPanel onClose={() => setShowScheduled(false)} />}
     </div>
   );
 }

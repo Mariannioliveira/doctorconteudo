@@ -351,12 +351,11 @@ async def run_pipeline(
                         await _run_agent_step(step_04, run_id, state, run_ctx, last_decision)
                     continue
 
-                # step-07: user wants design adjusted → re-run designer and ask again.
-                # Loop here until the user picks a terminal action (publish or download/save).
-                # Without this loop, control would fall through to step-08 (publish) and
-                # bypass approval — exactly what we don't want.
-                if action == "adjust_design" and step_id == "step-07":
-                    while action == "adjust_design":
+                # step-07: user wants design adjusted OR sent feedback via chat (request_changes).
+                # Loop here until the user picks a terminal action (publish/schedule/download).
+                # request_changes must NEVER fall through to step-08 without explicit approval.
+                if action in ("adjust_design", "request_changes") and step_id == "step-07":
+                    while action in ("adjust_design", "request_changes"):
                         state["status"] = "running"
                         save_run_state(state)
                         await run_ctx.emit("checkpoint_resolved", {"step_id": step_id, "action": action})

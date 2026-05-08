@@ -44,7 +44,9 @@ export async function uploadToCatbox(imagePath) {
 
 // ── Instagram Graph API ───────────────────────────────────────
 
-const IG_BASE = 'https://graph.facebook.com/v21.0';
+// Instagram Login tokens use graph.instagram.com
+// Facebook Login tokens use graph.facebook.com
+const IG_BASE = 'https://graph.instagram.com/v21.0';
 
 export async function getContainerStatus(containerId, accessToken) {
   const params = new URLSearchParams({ fields: 'status_code', access_token: accessToken });

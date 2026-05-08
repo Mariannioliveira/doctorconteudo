@@ -51,7 +51,7 @@ async def execute_step(
     """
     # step-08 (publicador) runs the Instagram publish script — does not call Claude
     if step.get("id") == "step-08":
-        output = await _execute_publish(run_id, on_token)
+        output = await _execute_publish(run_id, on_token, last_decision=last_decision)
         _save_output("step-08", run_id, output, "publicador")
         return output
 
@@ -163,8 +163,21 @@ def _build_user_message(step: dict, run_id: str, last_decision: dict | None) -> 
             decision_context += f"Busque APENAS notícias publicadas nos últimos {period} a partir de {today}. Filtre por data nas suas buscas.\n"
         elif step_id == "step-03" and action == "request_changes":
             decision_context = f"\n**Feedback do usuário sobre o rascunho anterior:**\n{feedback}\nRevise o conteúdo considerando este feedback.\n"
-        elif step_id == "step-06" and action == "adjust_design":
-            decision_context = "\n**O usuário solicitou ajuste no design. Use a versão mais recente do content-draft.md.**\n"
+        elif step_id == "step-06" and action in ("adjust_design", "request_changes"):
+            if feedback:
+                decision_context = (
+                    f"\n**O usuário pediu este ajuste específico:** {feedback}\n\n"
+                    "OBRIGATÓRIO: gere uma imagem COMPLETAMENTE DIFERENTE da anterior — "
+                    "crie um novo prompt temático e use uma seed diferente. "
+                    "Se o pedido menciona pessoa/paciente/humano, use os modificadores de qualidade: "
+                    "`hyperrealistic, sharp focus, 8k uhd, professional photography, perfect face`.\n"
+                )
+            else:
+                decision_context = (
+                    "\n**O usuário solicitou ajuste no design.**\n"
+                    "OBRIGATÓRIO: gere uma imagem COMPLETAMENTE DIFERENTE — novo prompt, nova seed. "
+                    "Não reutilize a URL ou seed anterior.\n"
+                )
 
     output_instructions = _get_output_instructions(step_id)
 
@@ -209,15 +222,19 @@ def _get_output_instructions(step_id: str) -> str:
         ),
         "step-03": (
             "Crie o conteúdo completo para a card única no Instagram.\n"
-            "Leia a notícia selecionada em selected-story.yaml e siga exatamente o seu Output Format:\n\n"
+            "Leia a notícia selecionada em selected-story.yaml e siga exatamente o seu Output Format.\n\n"
+            "REGRA CRÍTICA DA HEADLINE: a headline DEVE ser o título real da notícia adaptado para "
+            "português do Brasil em max 10 palavras — estilo manchete de jornal. "
+            "Nunca invente, reinterprete ou crie ângulo próprio. Use o 'title' do selected-story.yaml "
+            "como base direta. Se já estiver em português e couber em 10 palavras, use quase idêntico.\n\n"
             "=== HEADLINE DO CARD ===\n"
-            "[Headline factual — max 10 palavras, estilo manchete de jornal]\n\n"
+            "[Título real da notícia — max 10 palavras, em português, manchete direta]\n\n"
             "=== PALAVRAS EM DESTAQUE (#92adff) ===\n"
             "[palavra1], [expressão2]\n\n"
             "=== DESCRIÇÃO DO VISUAL ===\n"
             "[Descrição da foto de fundo ideal]\n\n"
             "=== LEGENDA INSTAGRAM ===\n"
-            "[Legenda educacional completa + (Fonte: veículo) + hashtags]\n\n"
+            "[Resumo factual da notícia + (Fonte: veículo)]\n\n"
             "Tudo em português do Brasil. Não inclua texto fora deste formato."
         ),
         "step-04": (
@@ -547,10 +564,20 @@ def _extract_caption(draft: str) -> str:
     return ""
 
 
-async def _execute_publish(run_id: str, on_token: Callable[[str], None] | None) -> str:
-    """Execute the Instagram publish script for step-11. Does not call Claude."""
+async def _execute_publish(
+    run_id: str,
+    on_token: Callable[[str], None] | None,
+    last_decision: dict | None = None,
+) -> str:
+    """Execute the Instagram publish script for step-08. Does not call Claude."""
     import re
     from datetime import datetime, timezone
+
+    # If user chose to schedule, save to scheduler instead of publishing now
+    if last_decision and last_decision.get("action") == "schedule":
+        value = last_decision.get("value") or {}
+        scheduled_time = value.get("scheduled_time", "") if isinstance(value, dict) else str(value)
+        return await _save_to_scheduler(run_id, scheduled_time, on_token)
 
     run_dir = get_run_dir(run_id)
     env_path = PROJECT_ROOT / ".env"
@@ -665,6 +692,141 @@ async def _execute_publish(run_id: str, on_token: Callable[[str], None] | None) 
         msg = f"❌ Erro inesperado: {e}"
         emit(msg)
         return f"# Relatório de Publicação\n\n**Status:** ERRO\n\n{msg}"
+
+
+async def _save_to_scheduler(run_id: str, scheduled_time: str, on_token: Callable[[str], None] | None) -> str:
+    """Save post data to the scheduler store instead of publishing immediately."""
+    from datetime import datetime, timezone
+    from .scheduled_posts import add as add_scheduled
+
+    def emit(text: str):
+        if on_token:
+            on_token(text)
+
+    run_dir = get_run_dir(run_id)
+    card_jpg = run_dir / "design" / "card.jpg"
+
+    if not card_jpg.exists():
+        msg = "❌ card.jpg não encontrado — não é possível agendar."
+        emit(msg)
+        return f"# Agendamento\n\n**Status:** ERRO\n\n{msg}"
+
+    draft = read_artifact(run_id, "v1/content-draft.md")
+    caption = _extract_caption(draft)[:2200] if draft else ""
+    if not caption:
+        msg = "❌ Legenda não encontrada — não é possível agendar."
+        emit(msg)
+        return f"# Agendamento\n\n**Status:** ERRO\n\n{msg}"
+
+    try:
+        dt = datetime.fromisoformat(scheduled_time)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        scheduled_iso = dt.isoformat()
+        scheduled_display = dt.strftime("%d/%m/%Y às %H:%M")
+    except Exception:
+        scheduled_iso = scheduled_time
+        scheduled_display = scheduled_time
+
+    # squad name is the grandparent of the run's output dir: squads/{squad}/output/{run_id}
+    squad_name = run_dir.parent.parent.name
+
+    post = add_scheduled(
+        squad_name=squad_name,
+        run_id=run_id,
+        image_path=str(card_jpg.resolve()),
+        caption=caption,
+        scheduled_time=scheduled_iso,
+    )
+
+    emit(f"📅 Post agendado para {scheduled_display}\n")
+
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    return (
+        f"# Relatório de Agendamento\n\n"
+        f"**Status:** AGENDADO ✅\n"
+        f"**Agendado para:** {scheduled_display}\n"
+        f"**Criado em:** {ts}\n\n"
+        f"## Post\n"
+        f"- **ID:** {post['id']}\n"
+        f"- **Card:** `design/card.jpg`\n\n"
+        f"O post será publicado automaticamente no horário programado."
+    )
+
+
+async def _execute_scheduled_post(
+    image_path: str,
+    caption: str,
+    run_id: str,
+    on_token: Callable[[str], None] | None = None,
+) -> str:
+    """Called by the scheduler to publish a previously scheduled post."""
+    import re
+    from datetime import datetime, timezone
+
+    env_path = PROJECT_ROOT / ".env"
+
+    def emit(text: str):
+        if on_token:
+            on_token(text)
+
+    env_content = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
+    has_token = bool(re.search(r"INSTAGRAM_ACCESS_TOKEN=\S+", env_content))
+    has_user = bool(re.search(r"INSTAGRAM_USER_ID=\S+", env_content))
+
+    if not has_token or not has_user:
+        missing = [k for k, ok in [("INSTAGRAM_ACCESS_TOKEN", has_token), ("INSTAGRAM_USER_ID", has_user)] if not ok]
+        return f"# Publicação\n\n**Status:** CREDENCIAIS FALTANDO\n\nFaltam: {', '.join(missing)}"
+
+    script_path = PROJECT_ROOT / "skills" / "instagram-publisher" / "scripts" / "publish.js"
+    emit("📸 Publicando post agendado...\n")
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "node",
+            f"--env-file={env_path}",
+            str(script_path),
+            "--images", image_path,
+            "--caption", caption[:2200],
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            cwd=str(PROJECT_ROOT),
+        )
+
+        stdout_lines: list[str] = []
+        async for line in proc.stdout:  # type: ignore[union-attr]
+            text = line.decode("utf-8", errors="replace")
+            stdout_lines.append(text)
+            emit(text)
+
+        await proc.wait()
+        full_output = "".join(stdout_lines)
+
+        if proc.returncode != 0:
+            return (
+                f"# Relatório de Publicação\n\n**Status:** ERRO (código {proc.returncode})\n\n"
+                f"```\n{full_output}\n```"
+            )
+
+        post_url = next((l.split("URL:")[-1].strip() for l in stdout_lines if "URL:" in l), "")
+        post_id_val = next((l.split("Post ID:")[-1].strip() for l in stdout_lines if "Post ID:" in l), "")
+
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        return (
+            f"# Relatório de Publicação\n\n"
+            f"**Status:** PUBLICADO ✅\n"
+            f"**Data:** {ts}\n\n"
+            f"## Post\n"
+            f"- **Post ID:** {post_id_val}\n"
+            f"- **URL:** {post_url}\n\n"
+            f"## Log\n"
+            f"```\n{full_output.strip()}\n```"
+        )
+
+    except FileNotFoundError:
+        return "# Publicação\n\n**Status:** ERRO\n\nNode.js não encontrado."
+    except Exception as e:
+        return f"# Publicação\n\n**Status:** ERRO\n\n{e}"
 
 
 # ─────────────────────────────────────────────

@@ -195,6 +195,7 @@ def _design_approval(run_id: str) -> dict:
         "run_id": run_id,
         "actions": [
             {"action": "publish", "label": "Publicar agora", "style": "primary"},
+            {"action": "schedule", "label": "📅 Agendar post", "style": "secondary"},
             {"action": "adjust_design", "label": "Ajustar design", "style": "secondary"},
             {"action": "download", "label": "Baixar imagem", "style": "ghost"},
         ]

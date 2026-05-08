@@ -556,10 +556,19 @@ function CheckpointMessage({
   const [feedback, setFeedback] = useState("");
   const [showFeedback, setShowFeedback] = useState(false);
   const [showStorySelector, setShowStorySelector] = useState(false);
+  const [showScheduler, setShowScheduler] = useState(false);
+  const [scheduledTime, setScheduledTime] = useState("");
   // selected: string key (index or hook letter)
   // selectedValue: the actual payload to send to backend
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedValue, setSelectedValue] = useState<unknown>(null);
+
+  // Default datetime-local value = now + 1 hour
+  const defaultScheduleTime = (() => {
+    const d = new Date(Date.now() + 60 * 60 * 1000);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  })();
 
   const payload = msg.payload;
 
@@ -573,9 +582,12 @@ function CheckpointMessage({
       setShowFeedback(true);
       return;
     }
-    // Show story selector inline for rewrite_copy
     if (action === "rewrite_copy") {
       setShowStorySelector(true);
+      return;
+    }
+    if (action === "schedule") {
+      setShowScheduler(true);
       return;
     }
     // Browser download for design_approval — trigger file download then end pipeline
@@ -588,6 +600,14 @@ function CheckpointMessage({
       document.body.removeChild(link);
     }
     await submitCheckpoint(squad, msg.stepId, action, selectedValue ?? selected, undefined);
+  };
+
+  const handleConfirmSchedule = async () => {
+    const time = scheduledTime || defaultScheduleTime;
+    // Convert datetime-local (local time) to ISO with offset
+    const dt = new Date(time);
+    await submitCheckpoint(squad, msg.stepId, "schedule", { scheduled_time: dt.toISOString() }, undefined);
+    setShowScheduler(false);
   };
 
   const handleSubmitFeedback = async (action: string) => {
@@ -723,6 +743,38 @@ function CheckpointMessage({
                   style={checkpointBtnStyle("ghost")}
                   onClick={() => { setShowStorySelector(false); setSelected(null); setSelectedValue(null); }}
                 >
+                  Cancelar
+                </button>
+              </>
+            ) : showScheduler ? (
+              <>
+                <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+                    Escolha a data e hora para publicar:
+                  </div>
+                  <input
+                    type="datetime-local"
+                    defaultValue={defaultScheduleTime}
+                    min={defaultScheduleTime}
+                    onChange={(e) => setScheduledTime(e.target.value)}
+                    style={{
+                      background: "rgba(255,255,255,0.06)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      padding: "8px 12px",
+                      color: "var(--text-primary)",
+                      fontSize: 13,
+                      fontFamily: "inherit",
+                      outline: "none",
+                      width: "100%",
+                      colorScheme: "dark",
+                    }}
+                  />
+                </div>
+                <button style={checkpointBtnStyle("primary")} onClick={handleConfirmSchedule}>
+                  Confirmar agendamento
+                </button>
+                <button style={checkpointBtnStyle("ghost")} onClick={() => setShowScheduler(false)}>
                   Cancelar
                 </button>
               </>
