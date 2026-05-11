@@ -17,3 +17,9 @@ tsconfig.tsbuildinfo
 .playwright-mcp/
 ui-*.png
 package-lock.json
+
+# Runtime state — gerado a cada run, não versionar
+squads/conteudo-social-medicos/_memory/seen-stories.json
+squads/conteudo-social-medicos/_memory/used-stories.json
+squads/conteudo-social-medicos/_memory/used-bg-images.json
+card-preview.jpg
