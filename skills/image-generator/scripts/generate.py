@@ -63,6 +63,10 @@ def generate_image(prompt, output_path, mode, api_key, reference_image=None):
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
 
+    # Ensure 4K quality on every request
+    if not prompt.lower().startswith("4k"):
+        prompt = "4K ultra high definition, ultra detailed, " + prompt
+
     parts = []
     if reference_image and os.path.exists(reference_image):
         ext = os.path.splitext(reference_image)[1].lower()
@@ -71,9 +75,9 @@ def generate_image(prompt, output_path, mode, api_key, reference_image=None):
         with open(reference_image, "rb") as img_f:
             img_b64 = base64.b64encode(img_f.read()).decode("utf-8")
         parts.append({"inlineData": {"mimeType": mime, "data": img_b64}})
-        parts.append({"text": f"Using the reference image above as style reference. Generate an image: {prompt}. Only output the image."})
+        parts.append({"text": f"Using the reference image above as style reference. Generate a 4K ultra high resolution image: {prompt}. Only output the image."})
     else:
-        parts.append({"text": f"Generate an image: {prompt}. Only output the image, no text."})
+        parts.append({"text": f"Generate a 4K ultra high resolution image: {prompt}. Only output the image, no text."})
 
     payload = json.dumps({
         "contents": [{"parts": parts}],

@@ -638,7 +638,7 @@ def _build_image_prompt(headline: str, visual_desc: str) -> str:
         f"{base}, "
         "single scene full frame composition, centered subject, "
         "no split screen, no multiple panels, no collage, no before and after, no grid, no diptych, "
-        "cinematic photorealistic, dramatic lighting, dark moody background, 8k uhd, sharp focus"
+        "4K ultra HD, ultra high resolution, cinematic photorealistic, dramatic lighting, dark moody background, 8k uhd, sharp focus"
     )
 
 
