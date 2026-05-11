@@ -669,8 +669,15 @@ async def _generate_background_image(run_id: str) -> None:
     if h:
         headline = h.group(1).strip()
 
-    # Build dramatic themed prompt based on headline keywords
-    prompt = _build_image_prompt(headline, visual_desc)
+    # Usa visual_desc do agente como base; acrescenta realismo e composição padrão.
+    base = visual_desc if visual_desc else _build_image_prompt(headline, "")
+    prompt = (
+        f"{base}, "
+        "photorealistic photography, real photo, no illustrations, no digital art, no painting, "
+        "single scene full frame composition, centered subject, "
+        "no split screen, no multiple panels, no collage, no before and after, no grid, no diptych, "
+        "4K ultra HD, cinematic lighting, dark moody background, 8k uhd, sharp focus"
+    )
 
     print(f"[designer] Generating background image: {prompt[:80]}...")
     try:

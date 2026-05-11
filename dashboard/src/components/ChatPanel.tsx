@@ -1002,7 +1002,7 @@ function CheckpointBody({
                   key={url}
                   src={url}
                   alt="Card gerado"
-                  style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }}
+                  style={{ width: "100%", height: "auto", display: "block", borderRadius: 8, border: "1px solid var(--border)" }}
                 />
               ))}
             </div>
@@ -1012,7 +1012,7 @@ function CheckpointBody({
                 src={payload.card_html_url}
                 style={{
                   width: "100%",
-                  height: 420,
+                  aspectRatio: "4/5",
                   border: "1px solid var(--border)",
                   borderRadius: 8,
                   background: "#000",
