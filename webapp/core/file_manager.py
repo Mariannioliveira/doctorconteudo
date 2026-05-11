@@ -98,12 +98,13 @@ def list_design_files(run_id: str) -> list[str]:
         return []
     squad_name = SQUAD_ROOT.name
     INTERNAL_ASSET_NAMES = {"logo-doctorcreator.png"}
+    INTERNAL_PREFIXES = ("img-bg", "bg-image")
     return sorted([
         f"/squad-output/{squad_name}/output/{run_id}/design/{f.name}"
         for f in design_dir.iterdir()
         if f.suffix.lower() in (".jpg", ".jpeg", ".png")
         and f.name not in INTERNAL_ASSET_NAMES
-        and not f.name.startswith("img-bg")
+        and not any(f.name.startswith(p) for p in INTERNAL_PREFIXES)
     ])
 
 

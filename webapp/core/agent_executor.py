@@ -60,10 +60,12 @@ async def execute_step(
 
     # step-01: pre-fetch news externally so Claude only ranks, no web_search used
     prefetched_news = ""
+    is_redo = False
     if step.get("id") == "step-01":
         from .news_fetcher import fetch_news
         period_days = _get_research_period(run_id)
-        prefetched_news = fetch_news(research_period_days=period_days)
+        is_redo = (last_decision or {}).get("action") == "redo_search"
+        prefetched_news = fetch_news(research_period_days=period_days, redo=is_redo)
 
     # Never pass web_search to Claude for step-01 — articles are pre-fetched
     skills = agent_meta.get("skills", [])
@@ -73,13 +75,13 @@ async def execute_step(
     user_message = _build_user_message(step, run_id, last_decision)
 
     if prefetched_news:
-        # Inject list of already-seen/used story URLs so the agent excludes them
-        excluded = _load_excluded_story_urls()
+        # No redo_search, inclui seen-stories para evitar repetição; em run fresco, só published.
+        excluded = _load_excluded_story_urls(include_seen=is_redo)
         exclusion_note = ""
         if excluded:
             url_list = "\n".join(f"- {u}" for u in sorted(excluded))
             exclusion_note = (
-                f"\n\n⚠️ NOTÍCIAS JÁ MOSTRADAS — NÃO incluir no output (URLs a excluir):\n{url_list}\n"
+                f"\n\n⚠️ URLs JÁ PUBLICADAS — prefira não incluir no output, mas inclua se não houver alternativas novas:\n{url_list}\n"
             )
         user_message = prefetched_news + exclusion_note + "\n\n---\n\n" + user_message
 
@@ -92,6 +94,7 @@ async def execute_step(
     _save_output(step["id"], run_id, output, agent_id)
 
     if step["id"] == "step-06":
+        await _generate_background_image(run_id)
         await _render_card_to_jpg(run_id)
 
     return output
@@ -221,6 +224,11 @@ def _get_output_instructions(step_id: str) -> str:
             "3. Ranquear os artigos restantes do mais ao menos interessante\n"
             "4. Retornar os melhores 10 em formato YAML\n\n"
             "NÃO faça buscas adicionais. NÃO invente informações. Use apenas os artigos fornecidos acima.\n\n"
+            "EXCLUIR obrigatoriamente do output:\n"
+            "- Notícias sobre resultados financeiros, faturamento, lucros trimestrais ou anuais de empresas\n"
+            "- Notícias sobre receita, projeção de receita, guidance financeiro\n"
+            "- Relatórios de balanço ou earnings de empresas\n"
+            "- Notícias puramente de negócios sem relação com saúde, wellness ou inovação em saúde\n\n"
             "Retorne APENAS o YAML abaixo, sem nenhum texto antes ou depois:\n"
             "```yaml\nranked_stories:\n  - rank: 1\n    title: \"Título completo\"\n"
             "    summary: \"2-3 frases objetivas\"\n"
@@ -238,8 +246,10 @@ def _get_output_instructions(step_id: str) -> str:
             "Leia a notícia selecionada em selected-story.yaml e siga exatamente o seu Output Format.\n\n"
             "REGRA CRÍTICA DA HEADLINE: a headline DEVE ser o título real da notícia adaptado para "
             "português do Brasil em max 10 palavras — estilo manchete de jornal. "
-            "Nunca invente, reinterprete ou crie ângulo próprio. Use o 'title' do selected-story.yaml "
-            "como base direta. Se já estiver em português e couber em 10 palavras, use quase idêntico.\n\n"
+            "Nunca invente, reinterprete ou crie ângulo próprio.\n\n"
+            "REGRA CRÍTICA DA LEGENDA: escrever em prosa corrida, parágrafos curtos. "
+            "PROIBIDO usar seções com título como 'Dados da notícia:', 'Dados e resultados:', 'Resumo:' etc. "
+            "PROIBIDO usar listas com hífen. Os dados devem ser integrados naturalmente nos parágrafos.\n\n"
             "=== HEADLINE DO CARD ===\n"
             "[Título real da notícia — max 10 palavras, em português, manchete direta]\n\n"
             "=== PALAVRAS EM DESTAQUE (#92adff) ===\n"
@@ -247,7 +257,13 @@ def _get_output_instructions(step_id: str) -> str:
             "=== DESCRIÇÃO DO VISUAL ===\n"
             "[Descrição da foto de fundo ideal]\n\n"
             "=== LEGENDA INSTAGRAM ===\n"
-            "[Resumo factual da notícia + (Fonte: veículo)]\n\n"
+            "➡️ Siga @doctorcreatorwellness\n\n"
+            "[Hook — frase forte]\n\n"
+            "[Parágrafo 1 — o que aconteceu]\n\n"
+            "[Parágrafo 2 — como funciona ou o mecanismo]\n\n"
+            "[Parágrafo 3 — na prática, com dados integrados em prosa]\n\n"
+            "[Parágrafo final — por que importa]\n\n"
+            "(Fonte: [veículo])\n\n"
             "Tudo em português do Brasil. Não inclua texto fora deste formato."
         ),
         "step-04": (
@@ -259,7 +275,11 @@ def _get_output_instructions(step_id: str) -> str:
         "step-06": (
             "Crie o HTML do card Instagram seguindo exatamente o Design System fixo.\n"
             "Leia o content-draft.md para obter: headline (=== HEADLINE DO CARD ===), "
-            "palavras em destaque (=== PALAVRAS EM DESTAQUE ===) e descrição do visual.\n"
+            "palavras em destaque (=== PALAVRAS EM DESTAQUE ===) e descrição do visual.\n\n"
+            "IMPORTANTE sobre a imagem de fundo:\n"
+            "- Use SEMPRE `./bg-image.jpg` como src do <img class='bg'>\n"
+            "- NÃO use URLs externas (Pollinations, Unsplash, etc.)\n"
+            "- A imagem é gerada automaticamente pelo sistema com Gemini antes do render\n\n"
             "Gere um HTML completo e auto-contido (CSS inline, Google Fonts via @import).\n"
             "Retorne APENAS o HTML, começando com <!DOCTYPE html>."
         ),
@@ -348,12 +368,55 @@ def _extract_html(content: str) -> str:
     return content
 
 
-def _load_excluded_story_urls() -> set[str]:
-    """Load URLs from used-stories.json and seen-stories.json to pass as exclusion list to step-01."""
+def _filter_prefetched_news(prefetched: str, excluded_urls: set[str]) -> str:
+    """Remove articles with excluded URLs from the pre-fetched news block before passing to Claude."""
+    if not excluded_urls:
+        return prefetched
+
+    lines = prefetched.split("\n")
+    result = []
+    skip_article = False
+    current_article_lines: list[str] = []
+
+    for line in lines:
+        # Article header (### N. Title)
+        if line.startswith("### "):
+            # Decide on previous article
+            if current_article_lines:
+                if not skip_article:
+                    result.extend(current_article_lines)
+            skip_article = False
+            current_article_lines = [line]
+        elif line.startswith("- **URL:**"):
+            url = line.replace("- **URL:**", "").strip()
+            if url in excluded_urls:
+                skip_article = True
+            current_article_lines.append(line)
+        else:
+            current_article_lines.append(line)
+
+    # Last article
+    if current_article_lines and not skip_article:
+        result.extend(current_article_lines)
+
+    filtered = "\n".join(result)
+    # Update header count
+    import re as _re
+    new_count = len(_re.findall(r'^### \d+\.', filtered, _re.MULTILINE))
+    filtered = _re.sub(r'## Notícias pré-buscadas \(\d+ artigos', f'## Notícias pré-buscadas ({new_count} artigos', filtered)
+    return filtered
+
+
+def _load_excluded_story_urls(include_seen: bool = False) -> set[str]:
+    """Load URLs to exclude from step-01 ranking.
+    always excludes used-stories.json (published); seen-stories.json only on redo_search."""
     import json as _json
     urls: set[str] = set()
     memory_dir = SQUAD_ROOT / "_memory"
-    for fname in ("used-stories.json", "seen-stories.json"):
+    fnames = ["used-stories.json"]
+    if include_seen:
+        fnames.append("seen-stories.json")
+    for fname in fnames:
         path = memory_dir / fname
         try:
             if path.exists():
@@ -505,6 +568,132 @@ def _patch_html_paths(html: str, run_id: str) -> str:
                 html = html.replace(f'"{bg_url}"', '"./img-bg.jpg"').replace(f"'{bg_url}'", '"./img-bg.jpg"')
 
     return html
+
+
+def _build_image_prompt(headline: str, visual_desc: str) -> str:
+    """Map headline keywords to a dramatic cinematic prompt for the card background."""
+    # Use only headline for matching — visual_desc can be misleading
+    text = headline.lower()
+
+    themes = [
+        # Medical conditions — most specific first
+        (["câncer", "cancer", "tumor", "oncol", "leucemia", "melanoma"],
+         "cancer cell 3D render glowing red pink tentacles dark background, dramatic microscopic view, ultra detailed scientific visualization"),
+        (["coração", "cardíac", "cardio", "infarto", "cardiovascular", "artéria", "avc", "derrame"],
+         "human heart anatomy glowing red arteries dark background, dramatic cinematic lighting, ultra detailed 3D medical render"),
+        (["cérebro", "alzheimer", "demência", "parkinson", "neurológ"],
+         "brain MRI scan glowing blue dark background, cinematic medical visualization, dramatic lighting, ultra detailed"),
+        (["ambulância", "emergência", "urgência", "pronto-socorro", "resgate"],
+         "ambulance rushing city night dramatic red blue lights rain street, cinematic photography, motion blur, photorealistic"),
+        (["dna", "genétic", "biotech", "microscop", "bióps"],
+         "DNA double helix glowing colorful dark background, cinematic ultra detailed 3D render"),
+        # Technology / AI
+        (["inteligência artificial", "ia detecta", "ia supera", "ia diagnos", "ia prevê", "robot", "machine learning"],
+         "glowing neural network brain medical AI visualization, futuristic dark lab, neon blue cyan accents, ultra detailed 3D render"),
+        # Sleep / recovery
+        (["sono", "insônia", "sleep"],
+         "person sleeping peacefully blue moonlight dramatic atmosphere, cinematic shallow depth of field, photorealistic"),
+        # Fitness / movement
+        (["fitness", "treino", "exercício", "atleta", "academia", "atividade física", "corrida", "musculação"],
+         "athlete training dramatic gym dark motivational lighting, high contrast cinematic, photorealistic"),
+        # Nutrition / food
+        (["nutrição", "alimentação", "dieta", "superfoods", "gut", "intestin", "microbioma", "fibras"],
+         "colorful superfoods ingredients dramatic flatlay dark slate background, macro cinematic overhead lighting, ultra detailed"),
+        # Supplements
+        (["suplemento", "vitamina", "proteína", "whey", "cápsula", "colágeno", "probiótico"],
+         "glowing supplement capsules pills arranged artistically dark pharmaceutical background, dramatic macro lighting, cinematic"),
+        # Mental health
+        (["mental", "ansiedade", "emocional", "stress", "depressão"],
+         "abstract mind brain waves glowing purple blue dark surreal cinematic, meditation silhouette dramatic"),
+        # Wearables
+        (["wearable", "smartwatch", "anel inteligente", "monitor", "sensor"],
+         "sleek smartwatch glowing health metrics dark premium surface, macro cinematic shot, blue light trails"),
+        # Skin / beauty / hormones
+        (["pele", "dermat", "cosmét", "beleza", "skincare"],
+         "glowing skin texture close up dark background, dramatic beauty macro photography, cinematic"),
+        (["hormônio", "menopausa", "feminina", "saúde da mulher", "ciclo"],
+         "flowers feminine botanical elements dark moody cinematic, soft dramatic shadows, editorial photography"),
+        # Patches / transdermal
+        (["patch", "transdérm", "adesivo"],
+         "transdermal patch close up skin dark dramatic background, macro cinematic lighting, ultra detailed"),
+        # Business / market / finance — wellness industry
+        (["lucro", "líder", "trimestre", "receita", "bilhão", "milhão", "investimento", "ipo", "startup", "empresa", "mercado", "crescimento", "superam", "projeta"],
+         "thriving wellness industry glowing growth chart upward trend dark background, dramatic cinematic corporate, premium aesthetic"),
+        # Longevity / biohacking
+        (["longevidade", "biohacking", "envelhecimento", "anti-aging"],
+         "person arms wide open dramatic sunset silhouette cinematic golden light, photorealistic wide shot"),
+        # General wellness
+        (["wellness", "bem-estar"],
+         "wellness lifestyle serene nature dramatic golden light cinematic, person silhouette peaceful, photorealistic"),
+    ]
+
+    for keywords, prompt_base in themes:
+        if any(kw in text for kw in keywords):
+            base = prompt_base
+            break
+    else:
+        base = "dramatic abstract health wellness concept glowing dark background, cinematic photorealistic, ultra detailed"
+
+    return (
+        f"{base}, "
+        "single scene full frame composition, centered subject, "
+        "no split screen, no multiple panels, no collage, no before and after, no grid, no diptych, "
+        "cinematic photorealistic, dramatic lighting, dark moody background, 8k uhd, sharp focus"
+    )
+
+
+async def _generate_background_image(run_id: str) -> None:
+    """Generate bg-image.jpg using Gemini via image-generator skill (OpenRouter API)."""
+    import re as _re
+
+    run_dir = get_run_dir(run_id)
+    design_dir = run_dir / "design"
+    design_dir.mkdir(parents=True, exist_ok=True)
+    output_path = design_dir / "bg-image.jpg"
+
+    script_path = PROJECT_ROOT / "skills" / "image-generator" / "scripts" / "generate.py"
+    if not script_path.exists():
+        print(f"[designer] image-generator script not found: {script_path}")
+        return
+
+    # Extract visual description and headline from content-draft.md
+    draft = read_artifact(run_id, "v1/content-draft.md") or ""
+
+    visual_desc = ""
+    m = _re.search(r'=== DESCRIÇÃO DO VISUAL ===\s*\n(.+?)(?:\n===|\Z)', draft, _re.DOTALL)
+    if m:
+        visual_desc = m.group(1).strip().split("\n")[0].strip()
+
+    headline = ""
+    h = _re.search(r'=== HEADLINE DO CARD ===\s*\n(.+)', draft)
+    if h:
+        headline = h.group(1).strip()
+
+    # Build dramatic themed prompt based on headline keywords
+    prompt = _build_image_prompt(headline, visual_desc)
+
+    print(f"[designer] Generating background image: {prompt[:80]}...")
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "python3", str(script_path),
+            "--prompt", prompt,
+            "--output", str(output_path),
+            "--mode", "production",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(PROJECT_ROOT),
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+            if proc.returncode == 0:
+                print(f"[designer] bg-image.jpg generated ({output_path.stat().st_size // 1024} KB)")
+            else:
+                print(f"[designer] image-generator failed: {stderr.decode()[:200]}")
+        except asyncio.TimeoutError:
+            proc.kill()
+            print("[designer] image-generator timed out after 120s")
+    except Exception as e:
+        print(f"[designer] Failed to generate background image: {e}")
 
 
 async def _render_card_to_jpg(run_id: str):

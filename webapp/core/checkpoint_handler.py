@@ -15,20 +15,25 @@ _SEEN_STORIES_PATH = SQUAD_ROOT / "_memory" / "seen-stories.json"
 
 
 def _load_used_urls() -> set[str]:
-    """URLs aprovadas (publicadas) + URLs já mostradas ao usuário (vistas mas recusadas)."""
+    """URLs já publicadas — excluídas da exibição no checkpoint.
+    Usa apenas used-stories.json (publicadas). seen-stories.json é filtrado
+    antes do ranqueamento pelo agente, não na exibição."""
     urls: set[str] = set()
-    for path in (_USED_STORIES_PATH, _SEEN_STORIES_PATH):
-        try:
-            if path.exists():
-                data = json.loads(path.read_text(encoding="utf-8"))
-                urls.update(entry.get("url", "") for entry in data if entry.get("url"))
-        except Exception:
-            pass
+    try:
+        if _USED_STORIES_PATH.exists():
+            data = json.loads(_USED_STORIES_PATH.read_text(encoding="utf-8"))
+            urls.update(entry.get("url", "") for entry in data if entry.get("url"))
+    except Exception:
+        pass
     return urls
 
 
-def _strip_code_fences(text: str) -> str:
+def _extract_yaml_content(text: str) -> str:
+    """Extrai YAML de texto que pode ter reasoning ou texto antes/depois do bloco."""
     text = text.strip()
+    match = re.search(r'```(?:yaml)?\s*\n([\s\S]*?)```', text)
+    if match:
+        return match.group(1).strip()
     text = re.sub(r'^```[a-zA-Z]*\s*\n?', '', text)
     text = re.sub(r'\n?```\s*$', '', text)
     return text.strip()
@@ -85,7 +90,7 @@ def _story_selection(run_id: str) -> dict:
     stories = []
     if raw:
         try:
-            clean = _strip_code_fences(raw)
+            clean = _extract_yaml_content(raw)
             data = yaml.safe_load(clean)
             if isinstance(data, dict):
                 stories = data.get("ranked_stories", data.get("stories", []))
@@ -118,8 +123,8 @@ def _content_review(run_id: str) -> dict:
     draft_raw = read_artifact(run_id, "v1/content-draft.md")
     review_raw = read_artifact(run_id, "v1/quality-review.md")
 
-    draft_md = _strip_code_fences(draft_raw) if draft_raw else ""
-    review_md = _strip_code_fences(review_raw) if review_raw else ""
+    draft_md = _extract_yaml_content(draft_raw) if draft_raw else ""
+    review_md = _extract_yaml_content(review_raw) if review_raw else ""
 
     # Extract headline for subtitle
     headline = ""
@@ -138,7 +143,7 @@ def _content_review(run_id: str) -> dict:
     ranked_raw = read_artifact(run_id, "v1/ranked-stories.yaml")
     if ranked_raw:
         try:
-            clean = _strip_code_fences(ranked_raw)
+            clean = _extract_yaml_content(ranked_raw)
             data = yaml.safe_load(clean)
             if isinstance(data, dict):
                 stories = data.get("ranked_stories", data.get("stories", []))

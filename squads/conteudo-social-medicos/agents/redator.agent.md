@@ -56,20 +56,19 @@ A legenda segue sempre o mesmo fluxo — adaptar o conteúdo ao tema da notícia
 
 4. **Na prática / O que muda:** Impacto concreto para o consumidor, paciente ou mercado.
 
-5. **Os dados / Resultados:** Números e evidências que sustentam a notícia.
+5. **O impacto / Por que importa:** Por que essa notícia importa para o público de saúde e wellness.
 
-6. **O impacto potencial:** Por que essa notícia importa.
-
-7. **Fonte:**
+6. **Fonte:**
    `(Fonte: [veículo])` — sempre presente, sem hashtags após.
 
 ### Regras de Formatação da Legenda
 
 - Parágrafos de 1-4 frases — nunca blocos longos de texto
 - Sem emojis no corpo do texto (apenas opcional no hook)
-- Listas com hífen para enumerar dados: "- Item 1\n- Item 2"
-- Tom: informativo, direto, ligeiramente analítico — não motivacional
-- Total: 150-400 palavras
+- **Proibido seções com título** como "Dados da notícia:", "Dados e resultados:", "Resumo:", etc. — escrever em prosa corrida
+- **Proibido listas com hífen** — integrar os dados nos parágrafos naturalmente
+- Tom: informativo, direto, jornalístico — não motivacional
+- Total: 150-350 palavras
 
 ## Output Format
 
@@ -92,13 +91,9 @@ A legenda segue sempre o mesmo fluxo — adaptar o conteúdo ao tema da notícia
 
 [Parágrafo 2 — como funciona / o mecanismo]
 
-[Parágrafo 3 — na prática]
+[Parágrafo 3 — na prática, integrando os dados concretos em prosa]
 
-[Dados e resultados:]
-- [dado 1]
-- [dado 2]
-
-[Parágrafo final — impacto potencial]
+[Parágrafo final — impacto / por que importa]
 
 (Fonte: [veículo])
 ```

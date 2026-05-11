@@ -8,32 +8,45 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 
+# Conjunto 1 — busca inicial
 _SEARCH_QUERIES = [
-    # Wellness puro
     "tendência wellness bem-estar Brasil 2026",
-    "novo produto bem-estar lançamento marca wellness 2026",
-    "saúde mental bem-estar emocional novidade 2026",
-    # Saúde comportamento e medicina
-    "saúde comportamento hábito saudável pesquisa 2026",
+    "novo produto bem-estar lançamento wellness 2026",
+    "saúde mental bem-estar novidade pesquisa 2026",
+    "hábito saudável pesquisa comportamento saúde 2026",
     "nutrição funcional alimentação saudável tendência 2026",
-    "sono recuperação saúde pesquisa novidade 2026",
-    # Inovação e mercado
-    "startup saúde wellness inovação lançamento 2026",
-    "mercado wellness suplementos crescimento tendência 2026",
-    "inovação medicina tratamento lançamento 2026",
-    # Tecnologia e IA
-    "inteligência artificial saúde diagnóstico 2026",
+    "sono recuperação saúde novidade 2026",
+    "medicamento tratamento aprovação saúde 2026",
+    "startup saúde wellness inovação produto lançamento 2026",
+    "inovação medicina tecnologia novidade 2026",
+    "inteligência artificial saúde diagnóstico novidade 2026",
     "wearable tecnologia saúde lançamento 2026",
-    # Internacional
-    "wellness trend health innovation 2026",
-    "health startup launch product 2026",
+    "wellness health innovation launch 2026",
+    "health technology startup product 2026",
+]
+
+# Conjunto 2 — usado no redo_search. Mesmas categorias (saúde, wellness, tech, inovação), ângulos diferentes.
+_REDO_SEARCH_QUERIES = [
+    "comportamento bem-estar rotina saudável estudo 2026",
+    "movimento wellness longevidade biohacking 2026",
+    "saúde preventiva autocuidado tendência 2026",
+    "descoberta médica pesquisa clínica 2026",
+    "microbioma intestinal gut health novidade 2026",
+    "saúde feminina hormônios inovação 2026",
+    "suplemento nutricional lançamento tendência 2026",
+    "fitness academia treino tecnologia 2026",
+    "medicina personalizada genômica inovação 2026",
+    "IA diagnóstico imagem médica 2026",
+    "telemedicina saúde digital plataforma 2026",
+    "well-being mental health innovation 2026",
+    "nutrition supplement wellness product 2026",
 ]
 
 
-def fetch_news(research_period_days: int = 30, max_results: int = 80) -> str:
+def fetch_news(research_period_days: int = 30, max_results: int = 80, redo: bool = False) -> str:
     """
-    Fetches recent medical/AI news articles and returns them as a formatted
-    markdown block ready to be injected into the researcher agent's prompt.
+    Fetches recent news articles and returns them as a formatted markdown block.
+    redo=True uses a second set of queries to find different articles.
     """
     try:
         from ddgs import DDGS
@@ -43,12 +56,13 @@ def fetch_news(research_period_days: int = 30, max_results: int = 80) -> str:
         except ImportError:
             return "(ddgs não instalado — instale com: pip install ddgs)"
 
+    queries = _REDO_SEARCH_QUERIES if redo else _SEARCH_QUERIES
     cutoff = datetime.now(timezone.utc) - timedelta(days=research_period_days)
     seen_urls: set[str] = set()
     articles: list[dict] = []
 
     with DDGS() as ddgs:
-        for query in _SEARCH_QUERIES:
+        for query in queries:
             if len(articles) >= max_results:
                 break
             try:
@@ -61,7 +75,6 @@ def fetch_news(research_period_days: int = 30, max_results: int = 80) -> str:
                     url = r.get("url", "")
                     if url in seen_urls:
                         continue
-                    # Filter by date if available
                     pub_date = r.get("date", "")
                     if pub_date:
                         try:

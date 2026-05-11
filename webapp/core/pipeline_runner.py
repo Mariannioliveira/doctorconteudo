@@ -26,8 +26,13 @@ def _save_seen_stories(run_id: str) -> None:
         if not raw:
             return
         import re as _re
-        clean = _re.sub(r'^```[a-zA-Z]*\s*\n?', '', raw.strip())
-        clean = _re.sub(r'\n?```\s*$', '', clean).strip()
+        _stripped = raw.strip()
+        _m = _re.search(r'```(?:yaml)?\s*\n([\s\S]*?)```', _stripped)
+        if _m:
+            clean = _m.group(1).strip()
+        else:
+            clean = _re.sub(r'^```[a-zA-Z]*\s*\n?', '', _stripped)
+            clean = _re.sub(r'\n?```\s*$', '', clean).strip()
         data = yaml.safe_load(clean)
         stories = []
         if isinstance(data, dict):
@@ -49,9 +54,32 @@ def _save_seen_stories(run_id: str) -> None:
             url = story.get("url", "")
             if url and url not in existing_urls:
                 existing.append({"url": url, "title": story.get("title", ""), "seen_at": datetime.now(timezone.utc).isoformat()})
+        # Keep only the 20 most recent entries
+        existing = existing[-20:]
         seen_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:
         print(f"[pipeline] failed to save seen stories: {e}")
+
+
+def _mark_story_seen(story: dict) -> None:
+    """Save a single selected story to seen-stories.json so it won't appear in future runs."""
+    import json
+    url = story.get("url", "")
+    if not url:
+        return
+    memory_dir = SQUAD_ROOT / "_memory"
+    memory_dir.mkdir(parents=True, exist_ok=True)
+    seen_path = memory_dir / "seen-stories.json"
+    existing: list = []
+    if seen_path.exists():
+        try:
+            existing = json.loads(seen_path.read_text(encoding="utf-8"))
+        except Exception:
+            existing = []
+    existing_urls = {e.get("url", "") for e in existing}
+    if url not in existing_urls:
+        existing.append({"url": url, "title": story.get("title", ""), "seen_at": datetime.now(timezone.utc).isoformat()})
+        seen_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _slugify(text: str, max_len: int = 60) -> str:
@@ -260,6 +288,8 @@ async def run_pipeline(
                         run_dir = get_run_dir(run_id)
                         story_yaml = yaml.dump(story_value, allow_unicode=True, default_flow_style=False)
                         (run_dir / "selected-story.yaml").write_text(story_yaml, encoding="utf-8")
+                        # Save selected story URL to seen-stories so it won't appear in future runs
+                        _mark_story_seen(story_value)
 
                 # step-02: user wants fresh news → save current stories as seen, re-run search
                 if step_id == "step-02" and action == "redo_search":
@@ -293,6 +323,7 @@ async def run_pipeline(
                             run_dir = get_run_dir(run_id)
                             story_yaml = yaml.dump(story_value, allow_unicode=True, default_flow_style=False)
                             (run_dir / "selected-story.yaml").write_text(story_yaml, encoding="utf-8")
+                            _mark_story_seen(story_value)
 
                 # Terminal: save draft
                 if action == "save_draft":
