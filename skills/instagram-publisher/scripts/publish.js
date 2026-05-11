@@ -23,23 +23,44 @@ export function parseArgs(argv) {
   return args;
 }
 
-// ── Image upload (catbox.moe) ─────────────────────────────────
+// ── Image upload ──────────────────────────────────────────────
 
-export async function uploadToCatbox(imagePath) {
+async function _uploadTo0x0(imagePath) {
   const absolutePath = resolve(imagePath);
   const fileBuffer = readFileSync(absolutePath);
   const fileName = absolutePath.split(/[\\/]/).pop();
-  const blob = new Blob([fileBuffer], { type: 'image/jpeg' });
+  const form = new FormData();
+  form.append('file', new Blob([fileBuffer], { type: 'image/jpeg' }), fileName);
+  const res = await fetch('https://0x0.st', { method: 'POST', body: form });
+  if (!res.ok) throw new Error(`0x0.st upload failed [${res.status}]: ${await res.text()}`);
+  return (await res.text()).trim();
+}
+
+async function _uploadToCatbox(imagePath) {
+  const absolutePath = resolve(imagePath);
+  const fileBuffer = readFileSync(absolutePath);
+  const fileName = absolutePath.split(/[\\/]/).pop();
   const form = new FormData();
   form.append('reqtype', 'fileupload');
-  form.append('fileToUpload', blob, fileName);
-  const res = await fetch('https://catbox.moe/user/api.php', {
-    method: 'POST',
-    body: form,
-  });
+  form.append('fileToUpload', new Blob([fileBuffer], { type: 'image/jpeg' }), fileName);
+  const userhash = process.env.CATBOX_USERHASH;
+  if (userhash) form.append('userhash', userhash);
+  const res = await fetch('https://catbox.moe/user/api.php', { method: 'POST', body: form });
   if (!res.ok) throw new Error(`catbox.moe upload failed [${res.status}]: ${await res.text()}`);
-  const url = (await res.text()).trim();
-  return url;
+  return (await res.text()).trim();
+}
+
+export async function uploadToCatbox(imagePath) {
+  // Se tiver CATBOX_USERHASH, usa catbox autenticado. Caso contrário, usa 0x0.st.
+  if (process.env.CATBOX_USERHASH) {
+    return await _uploadToCatbox(imagePath);
+  }
+  try {
+    return await _uploadTo0x0(imagePath);
+  } catch (e) {
+    console.warn(`   ⚠️ 0x0.st falhou (${e.message}) — tentando catbox.moe...`);
+    return await _uploadToCatbox(imagePath);
+  }
 }
 
 // ── Instagram Graph API ───────────────────────────────────────

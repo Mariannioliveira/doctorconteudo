@@ -761,9 +761,12 @@ def _extract_caption(draft: str) -> str:
     """Extract the Instagram caption block from content-draft.md."""
     import re
     match = re.search(r'=== LEGENDA INSTAGRAM ===\s*\n(.*?)(?:\n===|\Z)', draft, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    return ""
+    if not match:
+        return ""
+    caption = match.group(1).strip()
+    # Remove trailing code fences that Claude sometimes appends
+    caption = re.sub(r'\n?```\s*$', '', caption).strip()
+    return caption
 
 
 async def _execute_publish(
