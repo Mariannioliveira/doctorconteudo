@@ -1,16 +1,16 @@
 {
   "squad": "conteudo-social-medicos",
-  "status": "checkpoint",
+  "status": "completed",
   "step": {
-    "current": 7,
+    "current": 8,
     "total": 9,
     "label": "Aprovação para Publicação"
   },
   "agents": [
     {
-      "id": "pesquisador",
-      "name": "Dr. Scout",
-      "icon": "🔎",
+      "id": "instagram-scout",
+      "name": "Insta Scout",
+      "icon": "📸",
       "status": "done",
       "deliverTo": null,
       "desk": {
@@ -19,9 +19,9 @@
       }
     },
     {
-      "id": "redator",
-      "name": "Carlos Cópia",
-      "icon": "✍️",
+      "id": "pesquisador",
+      "name": "Dr. Scout",
+      "icon": "🔎",
       "status": "done",
       "deliverTo": null,
       "desk": {
@@ -30,9 +30,9 @@
       }
     },
     {
-      "id": "revisor",
-      "name": "Vera Veredito",
-      "icon": "🔍",
+      "id": "redator",
+      "name": "Carlos Cópia",
+      "icon": "✍️",
       "status": "done",
       "deliverTo": null,
       "desk": {
@@ -64,6 +64,6 @@
     }
   ],
   "handoff": null,
-  "startedAt": "2026-05-05T14:55:25.351136+00:00",
-  "updatedAt": "2026-05-05T15:16:45.613997+00:00"
+  "startedAt": "2026-05-12T12:48:37.395009+00:00",
+  "updatedAt": "2026-05-12T13:01:21.130329+00:00"
 }

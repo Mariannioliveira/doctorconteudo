@@ -438,7 +438,7 @@ def _save_output(step_id: str, run_id: str, content: str, agent_id: str):
             write_artifact(run_id, rel_path, content)
 
 
-_GRADIENT = "linear-gradient(to top, rgba(0,0,0,1.0) 0%, rgba(0,0,0,1.0) 30%, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.4) 62%, rgba(0,0,0,0.0) 75%)"
+_GRADIENT = "linear-gradient(to top, rgba(0,0,0,1.0) 0%, rgba(0,0,0,0.95) 22%, rgba(0,0,0,0.6) 36%, rgba(0,0,0,0.15) 50%, rgba(0,0,0,0.0) 55%)"
 _OVERLAY_CSS = f"  .overlay {{ position: absolute; inset: 0; z-index: 1; background: {_GRADIENT}; }}"
 _OVERLAY_DIV = '<div class="overlay"></div>'
 

@@ -25,42 +25,44 @@ export function parseArgs(argv) {
 
 // ── Image upload ──────────────────────────────────────────────
 
-async function _uploadTo0x0(imagePath) {
-  const absolutePath = resolve(imagePath);
-  const fileBuffer = readFileSync(absolutePath);
-  const fileName = absolutePath.split(/[\\/]/).pop();
-  const form = new FormData();
-  form.append('file', new Blob([fileBuffer], { type: 'image/jpeg' }), fileName);
-  const res = await fetch('https://0x0.st', { method: 'POST', body: form });
-  if (!res.ok) throw new Error(`0x0.st upload failed [${res.status}]: ${await res.text()}`);
-  return (await res.text()).trim();
-}
-
-async function _uploadToCatbox(imagePath) {
+async function _uploadToLitterbox(imagePath) {
   const absolutePath = resolve(imagePath);
   const fileBuffer = readFileSync(absolutePath);
   const fileName = absolutePath.split(/[\\/]/).pop();
   const form = new FormData();
   form.append('reqtype', 'fileupload');
+  form.append('time', '72h');
   form.append('fileToUpload', new Blob([fileBuffer], { type: 'image/jpeg' }), fileName);
-  const userhash = process.env.CATBOX_USERHASH;
-  if (userhash) form.append('userhash', userhash);
-  const res = await fetch('https://catbox.moe/user/api.php', { method: 'POST', body: form });
-  if (!res.ok) throw new Error(`catbox.moe upload failed [${res.status}]: ${await res.text()}`);
-  return (await res.text()).trim();
+  const res = await fetch('https://litterbox.catbox.moe/resources/files.php', { method: 'POST', body: form });
+  if (!res.ok) throw new Error(`litterbox.catbox.moe upload failed [${res.status}]: ${await res.text()}`);
+  const url = (await res.text()).trim();
+  if (!url.startsWith('http')) throw new Error(`litterbox.catbox.moe retornou resposta inesperada: ${url}`);
+  return url;
+}
+
+async function _uploadToImgBB(imagePath) {
+  const absolutePath = resolve(imagePath);
+  const fileBuffer = readFileSync(absolutePath);
+  const base64 = fileBuffer.toString('base64');
+  const apiKey = process.env.IMGBB_API_KEY;
+  if (!apiKey) throw new Error('IMGBB_API_KEY não configurado no .env');
+  const form = new FormData();
+  form.append('image', base64);
+  const res = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, { method: 'POST', body: form });
+  if (!res.ok) throw new Error(`imgbb.com upload failed [${res.status}]: ${await res.text()}`);
+  const json = await res.json();
+  return json.data.url;
 }
 
 export async function uploadToCatbox(imagePath) {
-  // Se tiver CATBOX_USERHASH, usa catbox autenticado. Caso contrário, usa 0x0.st.
-  if (process.env.CATBOX_USERHASH) {
-    return await _uploadToCatbox(imagePath);
-  }
+  // Primário: Litterbox (anônimo, sem auth, 72h de retenção)
   try {
-    return await _uploadTo0x0(imagePath);
+    return await _uploadToLitterbox(imagePath);
   } catch (e) {
-    console.warn(`   ⚠️ 0x0.st falhou (${e.message}) — tentando catbox.moe...`);
-    return await _uploadToCatbox(imagePath);
+    console.warn(`   ⚠️ Litterbox falhou (${e.message}) — tentando ImgBB...`);
   }
+  // Fallback: ImgBB (requer IMGBB_API_KEY no .env)
+  return await _uploadToImgBB(imagePath);
 }
 
 // ── Instagram Graph API ───────────────────────────────────────
