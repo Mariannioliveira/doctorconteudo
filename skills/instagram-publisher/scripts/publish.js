@@ -34,9 +34,12 @@ async function _uploadToLitterbox(imagePath) {
   form.append('time', '72h');
   form.append('fileToUpload', new Blob([fileBuffer], { type: 'image/jpeg' }), fileName);
   const res = await fetch('https://litterbox.catbox.moe/resources/files.php', { method: 'POST', body: form });
-  if (!res.ok) throw new Error(`litterbox.catbox.moe upload failed [${res.status}]: ${await res.text()}`);
+  if (!res.ok) {
+    const body = (await res.text()).slice(0, 300);
+    throw new Error(`litterbox.catbox.moe upload failed [${res.status}]: ${body}`);
+  }
   const url = (await res.text()).trim();
-  if (!url.startsWith('http')) throw new Error(`litterbox.catbox.moe retornou resposta inesperada: ${url}`);
+  if (!url.startsWith('http')) throw new Error(`litterbox.catbox.moe retornou resposta inesperada: ${url.slice(0, 200)}`);
   return url;
 }
 
@@ -69,7 +72,7 @@ export async function uploadToCatbox(imagePath) {
 
 // Instagram Login tokens use graph.instagram.com
 // Facebook Login tokens use graph.facebook.com
-const IG_BASE = 'https://graph.instagram.com/v21.0';
+const IG_BASE = 'https://graph.instagram.com/v22.0';
 
 export async function getContainerStatus(containerId, accessToken) {
   const params = new URLSearchParams({ fields: 'status_code', access_token: accessToken });

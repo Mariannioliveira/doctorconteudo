@@ -577,6 +577,17 @@ function CheckpointMessage({
     setSelectedValue(value);
   };
 
+  const triggerCardDownload = () => {
+    if (payload.type === "design_approval" && payload.run_id) {
+      const link = document.createElement("a");
+      link.href = `/api/squads/${squad}/runs/${payload.run_id}/card/download`;
+      link.download = "doctorcreator-card.jpg";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   const handleAction = async (action: string, hasFeedback?: boolean) => {
     if (hasFeedback) {
       setShowFeedback(true);
@@ -590,14 +601,9 @@ function CheckpointMessage({
       setShowScheduler(true);
       return;
     }
-    // Browser download for design_approval — trigger file download then end pipeline
-    if (action === "download" && payload.type === "design_approval" && payload.run_id) {
-      const link = document.createElement("a");
-      link.href = `/api/squads/${squad}/runs/${payload.run_id}/card/download`;
-      link.download = "doctorcreator-card.jpg";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+    // Always download the card when publishing or downloading from design_approval
+    if ((action === "publish" || action === "download") && payload.type === "design_approval") {
+      triggerCardDownload();
     }
     await submitCheckpoint(squad, msg.stepId, action, selectedValue ?? selected, undefined);
   };
@@ -606,6 +612,7 @@ function CheckpointMessage({
     const time = scheduledTime || defaultScheduleTime;
     // Convert datetime-local (local time) to ISO with offset
     const dt = new Date(time);
+    triggerCardDownload();
     await submitCheckpoint(squad, msg.stepId, "schedule", { scheduled_time: dt.toISOString() }, undefined);
     setShowScheduler(false);
   };

@@ -856,6 +856,7 @@ async def _execute_publish(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             cwd=str(PROJECT_ROOT),
+            limit=2 ** 20,  # 1MB — evita LimitOverrunError em respostas de erro longas
         )
 
         stdout_lines: list[str] = []
@@ -1003,6 +1004,7 @@ async def _execute_scheduled_post(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             cwd=str(PROJECT_ROOT),
+            limit=2 ** 20,
         )
 
         stdout_lines: list[str] = []
