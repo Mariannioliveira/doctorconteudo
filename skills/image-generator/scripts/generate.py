@@ -18,6 +18,7 @@ import argparse
 import base64
 import json
 import os
+import random
 import sys
 import time
 import urllib.request
@@ -57,7 +58,7 @@ def load_api_key():
     return key
 
 
-def generate_image(prompt, output_path, mode, api_key, reference_image=None):
+def generate_image(prompt, output_path, mode, api_key, reference_image=None, seed=None):
     """Generate a single image via Gemini API and save to output_path."""
     model = MODELS.get(mode, MODELS["test"])
 
@@ -66,6 +67,10 @@ def generate_image(prompt, output_path, mode, api_key, reference_image=None):
     # Ensure 4K quality on every request
     if not prompt.lower().startswith("4k"):
         prompt = "4K ultra high definition, ultra detailed, " + prompt
+
+    # Append variation seed to force a unique generation each call
+    variation = seed if seed is not None else random.randint(10000, 99999)
+    prompt = f"{prompt} [v{variation}]"
 
     parts = []
     if reference_image and os.path.exists(reference_image):
@@ -132,6 +137,8 @@ def main():
     parser.add_argument("--mode", choices=["test", "production"], default="test",
                         help="Generation mode: test or production")
     parser.add_argument("--reference", help="Path to reference image to include in the prompt")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Variation seed (random if omitted — guarantees a different image each call)")
     args = parser.parse_args()
 
     if not args.prompt and not args.batch:
@@ -151,7 +158,7 @@ def main():
             output = item["output"]
             ref = item.get("reference")
             print(f"[{i}/{len(items)}] {os.path.basename(output)}...")
-            if generate_image(prompt, output, args.mode, api_key, reference_image=ref):
+            if generate_image(prompt, output, args.mode, api_key, reference_image=ref, seed=args.seed):
                 success += 1
             if i < len(items):
                 time.sleep(1)
@@ -161,7 +168,7 @@ def main():
         if not args.output:
             parser.error("--output is required for single image generation")
         print(f"Generating: {os.path.basename(args.output)}...")
-        ok = generate_image(args.prompt, args.output, args.mode, api_key, reference_image=args.reference)
+        ok = generate_image(args.prompt, args.output, args.mode, api_key, reference_image=args.reference, seed=args.seed)
         sys.exit(0 if ok else 1)
 
 

@@ -32,10 +32,10 @@ CORES
   Body bg:     #0a0a0a  (fallback enquanto imagem carrega)
   Overlay:     linear-gradient(to top,
                  rgba(0,0,0,1.0) 0%,
-                 rgba(0,0,0,1.0) 30%,
-                 rgba(0,0,0,0.85) 45%,
-                 rgba(0,0,0,0.4) 62%,
-                 rgba(0,0,0,0.0) 75%)
+                 rgba(0,0,0,1.0) 32%,
+                 rgba(0,0,0,0.85) 42%,
+                 rgba(0,0,0,0.2) 52%,
+                 rgba(0,0,0,0.0) 60%)
 
 TIPOGRAFIA
   Família:     'Montserrat', sans-serif (Google Fonts @import)
@@ -149,7 +149,7 @@ python3 "skills/image-generator/scripts/generate.py" \
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { width: 1080px; height: 1350px; overflow: hidden; position: relative; font-family: 'Montserrat', sans-serif; background: #0a0a0a; }
   .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-  .overlay { position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,1.0) 0%, rgba(0,0,0,1.0) 30%, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.4) 62%, rgba(0,0,0,0.0) 75%); }
+  .overlay { position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,1.0) 0%, rgba(0,0,0,1.0) 32%, rgba(0,0,0,0.85) 42%, rgba(0,0,0,0.2) 52%, rgba(0,0,0,0.0) 60%); }
   .content { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; justify-content: flex-end; }
   .headline-block { padding: 0 160px 128px; text-align: center; }
   h1 { font-size: 53px; font-weight: 800; color: #FFFFFF; line-height: 1.15; max-height: 260px; overflow: hidden; }
@@ -248,7 +248,7 @@ DESIGN SYSTEM APLICADO:
 - [ ] Headline: Montserrat 800, **53px**, centralizada, branca
 - [ ] Palavras de destaque com `class="accent"` (`color: #92adff`)
 - [ ] Imagem de fundo gerada via `image-generator --mode production` e salva como `./bg-image.jpg`, `object-fit: cover`
-- [ ] Overlay: `linear-gradient(to top, rgba(0,0,0,1.0) 0%, rgba(0,0,0,1.0) 30%, rgba(0,0,0,0.85) 45%, rgba(0,0,0,0.4) 62%, rgba(0,0,0,0.0) 75%)`
+- [ ] Overlay: `linear-gradient(to top, rgba(0,0,0,1.0) 0%, rgba(0,0,0,1.0) 32%, rgba(0,0,0,0.85) 42%, rgba(0,0,0,0.2) 52%, rgba(0,0,0,0.0) 60%)`
 - [ ] `body { background: #0a0a0a }` como fallback
 - [ ] `.headline-block { padding: 0 160px 128px }`
 - [ ] `.footer { padding: 20px 48px 80px }` (sem height fixo)
