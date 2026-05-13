@@ -10,65 +10,60 @@ from datetime import datetime, timedelta, timezone
 
 # Conjunto 1 — busca inicial
 _SEARCH_QUERIES = [
+    # Inovação / IA / tecnologia (prioridade alta)
+    "inteligência artificial saúde diagnóstico novidade 2026",
+    "AI health breakthrough medical innovation 2026",
+    "wearable tecnologia saúde lançamento 2026",
+    "startup saúde healthtech inovação produto 2026",
+    "health technology AI startup product launch 2026",
+    "medicina personalizada inovação genômica 2026",
+    "robótica cirurgia telemedicina digital saúde 2026",
     # Wellness / bem-estar
     "tendência wellness bem-estar Brasil 2026",
     "novo produto bem-estar lançamento wellness 2026",
-    "saúde mental bem-estar novidade pesquisa 2026",
-    "hábito saudável pesquisa comportamento saúde 2026",
     "nutrição funcional alimentação saudável tendência 2026",
-    "sono recuperação saúde novidade 2026",
-    # Inovação / tecnologia
-    "inovação medicina tecnologia novidade 2026",
-    "inteligência artificial saúde diagnóstico novidade 2026",
-    "wearable tecnologia saúde lançamento 2026",
-    "startup saúde wellness inovação produto lançamento 2026",
-    "health technology startup product 2026",
-    # Saúde pública / regulatório / viral (captura Anvisa, vigilância, tendências sociais)
-    "Anvisa alerta produto saúde Brasil",
+    "longevidade biohacking wellness pesquisa 2026",
+    # Saúde pública / regulatório / viral
+    "Anvisa alerta produto medicamento Brasil",
     "vigilância sanitária contaminação produto Brasil",
-    "saúde pública notícia Brasil semana",
-    "medicina viral notícia Brasil médico",
-    "Exame saúde wellness inovação Brasil notícia",
+    "saúde pública notícia Brasil destaque semana",
+    "medicina viral tendência Brasil médico 2026",
 ]
 
-# Conjunto 2 — usado no redo_search. Mesmas categorias, ângulos diferentes.
+# Conjunto 2 — redo_search. Ângulos diferentes.
 _REDO_SEARCH_QUERIES = [
+    # Inovação / IA / tecnologia
+    "IA diagnóstico imagem médica inovação 2026",
+    "machine learning healthcare innovation breakthrough",
+    "digital health platform startup Brazil 2026",
+    "medical device wearable sensor health 2026",
+    "biotech pharma innovation launch 2026",
     # Wellness / bem-estar
-    "comportamento bem-estar rotina saudável estudo 2026",
-    "movimento wellness longevidade biohacking 2026",
-    "saúde preventiva autocuidado tendência 2026",
     "microbioma intestinal gut health novidade 2026",
     "saúde feminina hormônios inovação 2026",
     "suplemento nutricional lançamento tendência 2026",
-    # Inovação / tecnologia
-    "fitness academia treino tecnologia 2026",
-    "medicina personalizada genômica inovação 2026",
-    "IA diagnóstico imagem médica 2026",
-    "telemedicina saúde digital plataforma 2026",
-    "well-being mental health innovation 2026",
+    "sono recuperação saúde pesquisa 2026",
+    "saúde mental bem-estar novidade pesquisa 2026",
     # Saúde pública / regulatório / viral
-    "Anvisa medicamento aprovação Brasil 2026",
-    "educação médica medicina Brasil notícia",
+    "Anvisa medicamento aprovação alerta Brasil 2026",
     "saúde viral tendência Brasil hoje",
-    "regulação saúde SUS Brasil destaque",
+    "health wellness news trending 2026",
+    "well-being mental health innovation research 2026",
 ]
 
-# Páginas para scraping direto — captura manchetes em destaque que DuckDuckGo pode perder
+# Páginas para scraping direto — SSR apenas; sem bemestar (traz conteúdo opinativo)
 _DIRECT_FETCH_URLS = [
-    # G1
-    "https://g1.globo.com/",
+    # G1 — notícias em destaque e editorias de saúde/ciência
     "https://g1.globo.com/saude/",
     "https://g1.globo.com/ciencia-e-saude/",
-    "https://g1.globo.com/bemestar/",
-    # Exame
-    "https://exame.com/",
+    # Exame — saúde e inovação
     "https://exame.com/saude/",
-    # NY Post (health & wellness section)
+    "https://exame.com/tecnologia/",
+    # NY Post — health e science (cobertura internacional de inovação/IA)
     "https://nypost.com/health/",
-    "https://nypost.com/lifestyle/",
-    # Metrópoles
+    "https://nypost.com/science/",
+    # Metrópoles — saúde
     "https://www.metropoles.com/saude",
-    "https://www.metropoles.com/vida-e-estilo",
 ]
 
 
@@ -76,6 +71,7 @@ _NAV_PHRASES = {
     "fale com", "assine", "ver mais", "see more", "leia mais", "saiba mais",
     "acesse", "baixe", "newsletter", "publicidade", "anuncie", "sobre nós",
     "contato", "privacidade", "política", "termos", "login", "cadastre",
+    "por que ", "como fazer", "dicas para", "entenda ", "carta para",
 }
 
 
