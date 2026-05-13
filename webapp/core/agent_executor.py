@@ -60,12 +60,17 @@ async def execute_step(
 
     # step-01: pre-fetch news externally so Claude only ranks, no web_search used
     prefetched_news = ""
+    instagram_topics = ""
     is_redo = False
     if step.get("id") == "step-01":
         from .news_fetcher import fetch_news
         period_days = _get_research_period(run_id)
         is_redo = (last_decision or {}).get("action") == "redo_search"
         prefetched_news = fetch_news(research_period_days=period_days, redo=is_redo)
+        # Load instagram topics from squad memory for ranking guidance
+        _ig_path = SQUAD_ROOT / "_memory" / "instagram-topics.md"
+        if _ig_path.exists():
+            instagram_topics = _ig_path.read_text(encoding="utf-8")
 
     # Never pass web_search to Claude for step-01 — articles are pre-fetched
     skills = agent_meta.get("skills", [])
@@ -80,7 +85,14 @@ async def execute_step(
         if excluded:
             # Physically remove excluded articles from the news block so Claude never sees them
             prefetched_news = _filter_prefetched_news(prefetched_news, excluded)
-        user_message = prefetched_news + "\n\n---\n\n" + user_message
+        ig_block = ""
+        if instagram_topics:
+            ig_block = (
+                "\n\n=== INSTAGRAM_TOPICS — temas em alta nos perfis de referência ===\n"
+                f"{instagram_topics}\n"
+                "=== Use estes temas para PRIORIZAR artigos similares no ranking ===\n"
+            )
+        user_message = prefetched_news + ig_block + "\n\n---\n\n" + user_message
 
     model_tier = agent_meta.get("model_tier", "standard")
     output = await _call_claude_cli(
