@@ -146,62 +146,63 @@ def fetch_news(research_period_days: int = 30, max_results: int = 80, redo: bool
     """
     Fetches recent news articles and returns them as a formatted markdown block.
     redo=True uses a second set of queries to find different articles.
+    Etapa 1: scraping direto dos sites de referência (sempre).
+    Etapa 2: DuckDuckGo News (se ddgs disponível).
     """
-    try:
-        from ddgs import DDGS
-    except ImportError:
-        try:
-            from duckduckgo_search import DDGS
-        except ImportError:
-            return "(ddgs não instalado — instale com: pip install ddgs)"
-
     queries = _REDO_SEARCH_QUERIES if redo else _SEARCH_QUERIES
     cutoff = datetime.now(timezone.utc) - timedelta(days=research_period_days)
     seen_urls: set[str] = set()
     articles: list[dict] = []
 
     # ── Etapa 1: scraping direto dos sites de referência ──────────────────
-    # Captura manchetes em destaque que o DuckDuckGo pode não indexar ainda
     for site_url in _DIRECT_FETCH_URLS:
-        scraped = _scrape_site_headlines(site_url, max_articles=10)
+        scraped = _scrape_site_headlines(site_url, max_articles=8)
         for a in scraped:
             if a["url"] not in seen_urls:
                 seen_urls.add(a["url"])
                 articles.append(a)
 
     # ── Etapa 2: buscas gerais via DuckDuckGo News ────────────────────────
-    with DDGS() as ddgs:
-        for query in queries:
-            if len(articles) >= max_results:
-                break
-            try:
-                results = ddgs.news(
-                    query,
-                    max_results=8,
-                    safesearch="off",
-                )
-                for r in results:
-                    url = r.get("url", "")
-                    if url in seen_urls:
-                        continue
-                    pub_date = r.get("date", "")
-                    if pub_date:
-                        try:
-                            dt = datetime.fromisoformat(pub_date.replace("Z", "+00:00"))
-                            if dt < cutoff:
+    try:
+        from ddgs import DDGS as _DDGS
+    except ImportError:
+        try:
+            from duckduckgo_search import DDGS as _DDGS  # type: ignore
+        except ImportError:
+            _DDGS = None  # type: ignore
+
+    if _DDGS is not None:
+        try:
+            with _DDGS() as ddgs:
+                for query in queries:
+                    if len(articles) >= max_results:
+                        break
+                    try:
+                        results = ddgs.news(query, max_results=8, safesearch="off")
+                        for r in results:
+                            url = r.get("url", "")
+                            if url in seen_urls:
                                 continue
-                        except ValueError:
-                            pass
-                    seen_urls.add(url)
-                    articles.append({
-                        "title": r.get("title", ""),
-                        "body": r.get("body", ""),
-                        "source": r.get("source", ""),
-                        "url": url,
-                        "date": pub_date,
-                    })
-            except Exception:
-                continue
+                            pub_date = r.get("date", "")
+                            if pub_date:
+                                try:
+                                    dt = datetime.fromisoformat(pub_date.replace("Z", "+00:00"))
+                                    if dt < cutoff:
+                                        continue
+                                except ValueError:
+                                    pass
+                            seen_urls.add(url)
+                            articles.append({
+                                "title": r.get("title", ""),
+                                "body": r.get("body", ""),
+                                "source": r.get("source", ""),
+                                "url": url,
+                                "date": pub_date,
+                            })
+                    except Exception:
+                        continue
+        except Exception:
+            pass
 
     if not articles:
         return "(Nenhuma notícia encontrada via DuckDuckGo)"
