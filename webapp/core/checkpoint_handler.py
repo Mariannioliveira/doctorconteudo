@@ -152,6 +152,12 @@ def _content_review(run_id: str) -> dict:
         except Exception:
             pass
 
+    # Extract caption for pre-filling the editor
+    caption_for_edit = ""
+    m2 = re.search(r'=== LEGENDA INSTAGRAM ===\s*\n(.*?)(?:\n===|\Z)', draft_md, re.DOTALL)
+    if m2:
+        caption_for_edit = m2.group(1).strip()[:8000]
+
     return {
         "type": "content_review",
         "title": "Carlos Cópia criou o conteúdo",
@@ -159,11 +165,14 @@ def _content_review(run_id: str) -> dict:
         "draft_md": draft_md,
         "review_md": review_md,
         "verdict": verdict,
+        "headline": headline,
+        "caption": caption_for_edit,
         "stories": stories,
         "actions": [
-            {"action": "create_design", "label": "Criar design", "style": "primary"},
+            {"action": "create_design", "label": "✅ Aprovar e criar design", "style": "primary"},
+            {"action": "edit_content", "label": "✏️ Editar título e legenda", "style": "secondary"},
             {"action": "rewrite_copy", "label": "Escolher outra notícia", "style": "secondary"},
-            {"action": "request_changes", "label": "Ajustar conteúdo", "style": "secondary", "has_feedback": True},
+            {"action": "request_changes", "label": "Ajustar conteúdo (IA)", "style": "secondary", "has_feedback": True},
             {"action": "save_draft", "label": "Salvar rascunho", "style": "ghost"},
         ],
     }

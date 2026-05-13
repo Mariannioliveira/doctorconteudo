@@ -82,6 +82,29 @@ def _mark_story_seen(story: dict) -> None:
         seen_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _apply_content_edit(run_id: str, headline: str, caption: str) -> None:
+    """Patch headline and caption in content-draft.md with user edits."""
+    import re as _re
+    draft_path = get_run_dir(run_id) / "v1" / "content-draft.md"
+    if not draft_path.exists() or (not headline and not caption):
+        return
+    text = draft_path.read_text(encoding="utf-8")
+    if headline:
+        text = _re.sub(
+            r'(=== HEADLINE DO CARD ===\s*\n)[^\n]+',
+            lambda m: m.group(1) + headline,
+            text,
+        )
+    if caption:
+        text = _re.sub(
+            r'(=== LEGENDA INSTAGRAM ===\s*\n)(.*?)(?=\n===|\Z)',
+            lambda m: m.group(1) + caption + "\n",
+            text,
+            flags=_re.DOTALL,
+        )
+    draft_path.write_text(text, encoding="utf-8")
+
+
 def _slugify(text: str, max_len: int = 60) -> str:
     import re, unicodedata
     norm = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
@@ -349,6 +372,13 @@ async def run_pipeline(
                         "message": "Card pronto para download.",
                     })
                     return
+
+                # step-05: user edited headline/caption directly — patch draft and continue to design
+                if action == "save_edit" and step_id == "step-05":
+                    value = decision.get("value", {})
+                    if isinstance(value, dict):
+                        _apply_content_edit(run_id, value.get("headline", ""), value.get("caption", ""))
+                    # fall through to generic checkpoint done handler below
 
                 # step-05: user picks a different story → save new story, re-run redator + revisor
                 if action == "rewrite_copy" and step_id == "step-05":

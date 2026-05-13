@@ -558,6 +558,9 @@ function CheckpointMessage({
   const [showStorySelector, setShowStorySelector] = useState(false);
   const [showScheduler, setShowScheduler] = useState(false);
   const [scheduledTime, setScheduledTime] = useState("");
+  const [showContentEditor, setShowContentEditor] = useState(false);
+  const [editHeadline, setEditHeadline] = useState("");
+  const [editCaption, setEditCaption] = useState("");
   // selected: string key (index or hook letter)
   // selectedValue: the actual payload to send to backend
   const [selected, setSelected] = useState<string | null>(null);
@@ -599,6 +602,12 @@ function CheckpointMessage({
     }
     if (action === "schedule") {
       setShowScheduler(true);
+      return;
+    }
+    if (action === "edit_content") {
+      setEditHeadline(payload.headline ?? "");
+      setEditCaption(payload.caption ?? "");
+      setShowContentEditor(true);
       return;
     }
     // Always download the card when publishing or downloading from design_approval
@@ -683,7 +692,37 @@ function CheckpointMessage({
         <div style={{ display: "flex", flexDirection: "column" }}>
           {/* Scrollable body */}
           <div style={{ padding: "12px 16px" }}>
-            {showStorySelector && payload.stories && payload.stories.length > 0 ? (
+            {showContentEditor ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                    📰 Título do card
+                  </div>
+                  <textarea
+                    value={editHeadline}
+                    onChange={(e) => setEditHeadline(e.target.value)}
+                    rows={2}
+                    style={{ ...textareaStyle, width: "100%", fontSize: 14, fontWeight: 700, resize: "vertical" }}
+                    placeholder="Título do card..."
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                    📱 Legenda Instagram
+                  </div>
+                  <textarea
+                    value={editCaption}
+                    onChange={(e) => setEditCaption(e.target.value)}
+                    rows={12}
+                    style={{ ...textareaStyle, width: "100%", fontSize: 12, resize: "vertical" }}
+                    placeholder="Legenda do post..."
+                  />
+                  <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 4, textAlign: "right" }}>
+                    {editCaption.length}/2200 caracteres
+                  </div>
+                </div>
+              </div>
+            ) : showStorySelector && payload.stories && payload.stories.length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>
                   Escolha outra notícia para reescrever o copy:
@@ -737,7 +776,26 @@ function CheckpointMessage({
               gap: 8,
             }}
           >
-            {showStorySelector ? (
+            {showContentEditor ? (
+              <>
+                <button
+                  style={{ ...checkpointBtnStyle("primary"), opacity: (!editHeadline.trim() || !editCaption.trim()) ? 0.5 : 1 }}
+                  disabled={!editHeadline.trim() || !editCaption.trim()}
+                  onClick={() => {
+                    submitCheckpoint(squad, msg.stepId, "save_edit", { headline: editHeadline.trim(), caption: editCaption.trim() }, undefined);
+                    setShowContentEditor(false);
+                  }}
+                >
+                  💾 Salvar e criar design
+                </button>
+                <button
+                  style={checkpointBtnStyle("ghost")}
+                  onClick={() => setShowContentEditor(false)}
+                >
+                  Cancelar
+                </button>
+              </>
+            ) : showStorySelector ? (
               <>
                 <button
                   style={checkpointBtnStyle("primary")}

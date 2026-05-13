@@ -51,6 +51,7 @@ export interface CheckpointPayload {
   draft_md?: string;
   review_md?: string;
   verdict?: string;
+  headline?: string;
   // design_approval
   slides?: string[];
   card_html_url?: string;
