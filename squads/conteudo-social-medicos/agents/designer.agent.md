@@ -148,7 +148,7 @@ python3 "skills/image-generator/scripts/generate.py" \
   @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { width: 1080px; height: 1350px; overflow: hidden; position: relative; font-family: 'Montserrat', sans-serif; background: #0a0a0a; }
-  .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 30%; display: block; }
   .overlay { position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(0,0,0,1.0) 0%, rgba(0,0,0,1.0) 32%, rgba(0,0,0,0.85) 42%, rgba(0,0,0,0.2) 52%, rgba(0,0,0,0.0) 60%); }
   .content { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; justify-content: flex-end; }
   .headline-block { padding: 0 160px 128px; text-align: center; }
@@ -247,7 +247,7 @@ DESIGN SYSTEM APLICADO:
 - [ ] Google Fonts @import Montserrat (400, 700, 800)
 - [ ] Headline: Montserrat 800, **53px**, centralizada, branca
 - [ ] Palavras de destaque com `class="accent"` (`color: #92adff`)
-- [ ] Imagem de fundo gerada via `image-generator --mode production` e salva como `./bg-image.jpg`, `object-fit: cover`
+- [ ] Imagem de fundo gerada via `image-generator --mode production` e salva como `./bg-image.jpg`, `object-fit: cover`, `object-position: center 30%`
 - [ ] Overlay: `linear-gradient(to top, rgba(0,0,0,1.0) 0%, rgba(0,0,0,1.0) 32%, rgba(0,0,0,0.85) 42%, rgba(0,0,0,0.2) 52%, rgba(0,0,0,0.0) 60%)`
 - [ ] `body { background: #0a0a0a }` como fallback
 - [ ] `.headline-block { padding: 0 160px 128px }`

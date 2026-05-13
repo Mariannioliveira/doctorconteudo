@@ -33,7 +33,7 @@ async function _uploadToLitterbox(imagePath) {
   form.append('reqtype', 'fileupload');
   form.append('time', '72h');
   form.append('fileToUpload', new Blob([fileBuffer], { type: 'image/jpeg' }), fileName);
-  const res = await fetch('https://litterbox.catbox.moe/resources/files.php', { method: 'POST', body: form });
+  const res = await fetch('https://litterbox.catbox.moe/resources/files.php', { method: 'POST', body: form, signal: AbortSignal.timeout(60000) });
   if (!res.ok) {
     const body = (await res.text()).slice(0, 300);
     throw new Error(`litterbox.catbox.moe upload failed [${res.status}]: ${body}`);
@@ -51,7 +51,7 @@ async function _uploadToImgBB(imagePath) {
   if (!apiKey) throw new Error('IMGBB_API_KEY não configurado no .env');
   const form = new FormData();
   form.append('image', base64);
-  const res = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, { method: 'POST', body: form });
+  const res = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, { method: 'POST', body: form, signal: AbortSignal.timeout(60000) });
   if (!res.ok) throw new Error(`imgbb.com upload failed [${res.status}]: ${await res.text()}`);
   const json = await res.json();
   return json.data.url;
@@ -76,12 +76,12 @@ const IG_BASE = 'https://graph.instagram.com/v22.0';
 
 export async function getContainerStatus(containerId, accessToken) {
   const params = new URLSearchParams({ fields: 'status_code', access_token: accessToken });
-  const res = await fetch(`${IG_BASE}/${containerId}?${params}`);
+  const res = await fetch(`${IG_BASE}/${containerId}?${params}`, { signal: AbortSignal.timeout(30000) });
   if (!res.ok) throw new Error(`getContainerStatus failed [${res.status}]: ${await res.text()}`);
   return (await res.json()).status_code;
 }
 
-export async function pollUntilFinished(containerId, accessToken, timeoutMs = 60_000, intervalMs = 3_000) {
+export async function pollUntilFinished(containerId, accessToken, timeoutMs = 300_000, intervalMs = 3_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const status = await getContainerStatus(containerId, accessToken);
@@ -94,14 +94,14 @@ export async function pollUntilFinished(containerId, accessToken, timeoutMs = 60
 
 export async function publishMedia(userId, containerId, accessToken) {
   const params = new URLSearchParams({ creation_id: containerId, access_token: accessToken });
-  const res = await fetch(`${IG_BASE}/${userId}/media_publish?${params}`, { method: 'POST' });
+  const res = await fetch(`${IG_BASE}/${userId}/media_publish?${params}`, { method: 'POST', signal: AbortSignal.timeout(30000) });
   if (!res.ok) throw new Error(`publishMedia failed [${res.status}]: ${await res.text()}`);
   return (await res.json()).id;
 }
 
 export async function getPermalink(mediaId, accessToken) {
   const params = new URLSearchParams({ fields: 'permalink', access_token: accessToken });
-  const res = await fetch(`${IG_BASE}/${mediaId}?${params}`);
+  const res = await fetch(`${IG_BASE}/${mediaId}?${params}`, { signal: AbortSignal.timeout(30000) });
   if (!res.ok) return null;
   const json = await res.json();
   return json.permalink ?? null;
@@ -115,7 +115,7 @@ export async function createSingleImageContainer(userId, imageUrl, caption, acce
     caption,
     access_token: accessToken,
   });
-  const res = await fetch(`${IG_BASE}/${userId}/media?${params}`, { method: 'POST' });
+  const res = await fetch(`${IG_BASE}/${userId}/media?${params}`, { method: 'POST', signal: AbortSignal.timeout(30000) });
   if (!res.ok) throw new Error(`createSingleImageContainer failed [${res.status}]: ${await res.text()}`);
   return (await res.json()).id;
 }
@@ -128,7 +128,7 @@ export async function createChildContainer(userId, imageUrl, accessToken) {
     is_carousel_item: 'true',
     access_token: accessToken,
   });
-  const res = await fetch(`${IG_BASE}/${userId}/media?${params}`, { method: 'POST' });
+  const res = await fetch(`${IG_BASE}/${userId}/media?${params}`, { method: 'POST', signal: AbortSignal.timeout(30000) });
   if (!res.ok) throw new Error(`createChildContainer failed [${res.status}]: ${await res.text()}`);
   return (await res.json()).id;
 }
@@ -140,7 +140,7 @@ export async function createCarouselContainer(userId, childIds, caption, accessT
     caption,
     access_token: accessToken,
   });
-  const res = await fetch(`${IG_BASE}/${userId}/media?${params}`, { method: 'POST' });
+  const res = await fetch(`${IG_BASE}/${userId}/media?${params}`, { method: 'POST', signal: AbortSignal.timeout(30000) });
   if (!res.ok) throw new Error(`createCarouselContainer failed [${res.status}]: ${await res.text()}`);
   return (await res.json()).id;
 }

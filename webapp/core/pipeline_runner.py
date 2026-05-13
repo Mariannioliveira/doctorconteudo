@@ -291,8 +291,8 @@ async def run_pipeline(
                         # Save selected story URL to seen-stories so it won't appear in future runs
                         _mark_story_seen(story_value)
 
-                # step-02: user wants fresh news → save current stories as seen, re-run search
-                if step_id == "step-02" and action == "redo_search":
+                # step-02: user wants fresh news → loop until user selects a story
+                while step_id == "step-02" and action == "redo_search":
                     _save_seen_stories(run_id)
                     _update_step_status(state, step_id, "waiting")
                     state["status"] = "running"
@@ -317,13 +317,14 @@ async def run_pipeline(
                     last_decision = decision
                     action = decision.get("action", "")
                     save_checkpoint_decision(run_id, step_id, decision)
-                    if step_id == "step-02" and action == "select":
+                    if action == "select":
                         story_value = decision.get("value")
                         if story_value and isinstance(story_value, dict):
                             run_dir = get_run_dir(run_id)
                             story_yaml = yaml.dump(story_value, allow_unicode=True, default_flow_style=False)
                             (run_dir / "selected-story.yaml").write_text(story_yaml, encoding="utf-8")
                             _mark_story_seen(story_value)
+                        break  # user selected a story — exit redo loop
 
                 # Terminal: save draft
                 if action == "save_draft":

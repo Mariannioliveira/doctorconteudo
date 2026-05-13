@@ -77,13 +77,10 @@ async def execute_step(
     if prefetched_news:
         # No redo_search, inclui seen-stories para evitar repetição; em run fresco, só published.
         excluded = _load_excluded_story_urls(include_seen=is_redo)
-        exclusion_note = ""
         if excluded:
-            url_list = "\n".join(f"- {u}" for u in sorted(excluded))
-            exclusion_note = (
-                f"\n\n⚠️ URLs JÁ PUBLICADAS — prefira não incluir no output, mas inclua se não houver alternativas novas:\n{url_list}\n"
-            )
-        user_message = prefetched_news + exclusion_note + "\n\n---\n\n" + user_message
+            # Physically remove excluded articles from the news block so Claude never sees them
+            prefetched_news = _filter_prefetched_news(prefetched_news, excluded)
+        user_message = prefetched_news + "\n\n---\n\n" + user_message
 
     model_tier = agent_meta.get("model_tier", "standard")
     output = await _call_claude_cli(
@@ -229,6 +226,14 @@ def _get_output_instructions(step_id: str) -> str:
             "- Notícias sobre receita, projeção de receita, guidance financeiro\n"
             "- Relatórios de balanço ou earnings de empresas\n"
             "- Notícias puramente de negócios sem relação com saúde, wellness ou inovação em saúde\n\n"
+            "REGRA DE DIVERSIDADE OBRIGATÓRIA — MÍNIMO 10 notícias com todos os 4 temas representados:\n"
+            "- Mínimo 1 (máx. 3) de 'saúde' (doenças, medicamentos, tratamentos clínicos)\n"
+            "- Mínimo 2 de 'wellness' ou 'bem-estar' (hábitos, autocuidado, qualidade de vida, longevidade)\n"
+            "- Mínimo 2 de 'inovação' ou 'tecnologia' (wearables, startups, tech médica, pesquisa)\n"
+            "- Mínimo 1 de 'ia' (inteligência artificial na saúde, diagnóstico por IA, modelos de IA médica)\n"
+            "- As demais notícias (até completar 10+) podem ser de qualquer categoria válida\n"
+            "- NUNCA retornar menos de 10 notícias — se o filtro eliminar demais, incluir borderline casos\n"
+            "Se a lista fornecida não tiver artigos suficientes de um tema, use os melhores disponíveis dessa categoria antes de pular para outra.\n\n"
             "Retorne APENAS o YAML abaixo, sem nenhum texto antes ou depois:\n"
             "```yaml\nranked_stories:\n  - rank: 1\n    title: \"Título completo\"\n"
             "    summary: \"2-3 frases objetivas\"\n"
@@ -247,6 +252,11 @@ def _get_output_instructions(step_id: str) -> str:
             "REGRA CRÍTICA DA HEADLINE: a headline DEVE ser o título real da notícia adaptado para "
             "português do Brasil em max 10 palavras — estilo manchete de jornal. "
             "Nunca invente, reinterprete ou crie ângulo próprio.\n\n"
+            "REGRA DE SIGLAS NA HEADLINE: NUNCA usar siglas ou abreviações que não sejam "
+            "universalmente conhecidas pelo público leigo. Escrever sempre o nome completo. "
+            "Exemplos PROIBIDOS: 'PA' (usar 'Pressão Arterial'), 'IMC' (usar 'Índice de Massa Corporal'), "
+            "'GLP-1' (usar 'GLP-1 / semaglutida'), 'ECA' (usar o nome completo). "
+            "Exemplos PERMITIDOS somente se realmente populares no Brasil: COVID, HIV, IA (Inteligência Artificial), SUS, USP.\n\n"
             "REGRA CRÍTICA DA LEGENDA: escrever em prosa corrida, parágrafos curtos. "
             "PROIBIDO usar seções com título como 'Dados da notícia:', 'Dados e resultados:', 'Resumo:' etc. "
             "PROIBIDO usar listas com hífen. Os dados devem ser integrados naturalmente nos parágrafos.\n\n"
@@ -444,6 +454,7 @@ _OVERLAY_DIV = '<div class="overlay"></div>'
 
 # Canonical design values enforced at render time regardless of what the agent wrote
 _DESIGN_CSS_PATCHES = [
+    (r'\.bg\s*\{[^}]*\}', '.bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 30%; display: block; }'),
     (r'\.headline-block\s*\{[^}]*\}', '.headline-block { padding: 0 160px 128px; text-align: center; }'),
     (r'\bh1\s*\{[^}]*\}', 'h1 { font-size: 53px; font-weight: 800; color: #FFFFFF; line-height: 1.15; max-height: 260px; overflow: hidden; }'),
     (r'\.footer\s*\{[^}]*\}', '.footer { width: 100%; background: transparent; display: flex; align-items: center; justify-content: space-between; padding: 20px 48px 80px; }'),
