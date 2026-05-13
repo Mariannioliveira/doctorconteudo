@@ -25,47 +25,45 @@ export function parseArgs(argv) {
 
 // ── Image upload ──────────────────────────────────────────────
 
-async function _uploadToLitterbox(imagePath) {
+async function _uploadToCatbox(imagePath) {
   const absolutePath = resolve(imagePath);
   const fileBuffer = readFileSync(absolutePath);
   const fileName = absolutePath.split(/[\\/]/).pop();
   const form = new FormData();
   form.append('reqtype', 'fileupload');
-  form.append('time', '72h');
   form.append('fileToUpload', new Blob([fileBuffer], { type: 'image/jpeg' }), fileName);
-  const res = await fetch('https://litterbox.catbox.moe/resources/files.php', { method: 'POST', body: form, signal: AbortSignal.timeout(60000) });
+  const res = await fetch('https://catbox.moe/user/api.php', { method: 'POST', body: form, signal: AbortSignal.timeout(60000) });
   if (!res.ok) {
     const body = (await res.text()).slice(0, 300);
-    throw new Error(`litterbox.catbox.moe upload failed [${res.status}]: ${body}`);
+    throw new Error(`catbox.moe upload failed [${res.status}]: ${body}`);
   }
   const url = (await res.text()).trim();
-  if (!url.startsWith('http')) throw new Error(`litterbox.catbox.moe retornou resposta inesperada: ${url.slice(0, 200)}`);
+  if (!url.startsWith('http')) throw new Error(`catbox.moe retornou resposta inesperada: ${url.slice(0, 200)}`);
   return url;
 }
 
-async function _uploadToImgBB(imagePath) {
+async function _uploadTo0x0(imagePath) {
   const absolutePath = resolve(imagePath);
   const fileBuffer = readFileSync(absolutePath);
-  const base64 = fileBuffer.toString('base64');
-  const apiKey = process.env.IMGBB_API_KEY;
-  if (!apiKey) throw new Error('IMGBB_API_KEY não configurado no .env');
+  const fileName = absolutePath.split(/[\\/]/).pop();
   const form = new FormData();
-  form.append('image', base64);
-  const res = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, { method: 'POST', body: form, signal: AbortSignal.timeout(60000) });
-  if (!res.ok) throw new Error(`imgbb.com upload failed [${res.status}]: ${await res.text()}`);
-  const json = await res.json();
-  return json.data.url;
+  form.append('file', new Blob([fileBuffer], { type: 'image/jpeg' }), fileName);
+  const res = await fetch('https://0x0.st', { method: 'POST', body: form, signal: AbortSignal.timeout(60000) });
+  if (!res.ok) throw new Error(`0x0.st upload failed [${res.status}]: ${(await res.text()).slice(0, 200)}`);
+  const url = (await res.text()).trim();
+  if (!url.startsWith('http')) throw new Error(`0x0.st retornou resposta inesperada: ${url.slice(0, 200)}`);
+  return url;
 }
 
 export async function uploadToCatbox(imagePath) {
-  // Primário: Litterbox (anônimo, sem auth, 72h de retenção)
+  // Primário: catbox.moe (anônimo, sem auth, permanente)
   try {
-    return await _uploadToLitterbox(imagePath);
+    return await _uploadToCatbox(imagePath);
   } catch (e) {
-    console.warn(`   ⚠️ Litterbox falhou (${e.message}) — tentando ImgBB...`);
+    console.warn(`   ⚠️ catbox.moe falhou (${e.message}) — tentando 0x0.st...`);
   }
-  // Fallback: ImgBB (requer IMGBB_API_KEY no .env)
-  return await _uploadToImgBB(imagePath);
+  // Fallback: 0x0.st (anônimo, sem auth, sem API key)
+  return await _uploadTo0x0(imagePath);
 }
 
 // ── Instagram Graph API ───────────────────────────────────────
