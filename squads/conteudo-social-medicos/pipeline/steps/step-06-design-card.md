@@ -44,7 +44,40 @@ No HTML, referenciar como `./logo-doctorcreator.png`.
 
 - Viewport: 1080 x 1350px
 - Headline: Montserrat 800, 68-80px, branco — palavras de destaque em #92adff
-- Foto de fundo: fotorrealista, full-bleed, gradiente escuro na base
+- Foto de fundo: fotorrealista, full-bleed
 - Footer bar: 150px de altura, `rgba(0,0,0,0.88)`
 - Logo: `./logo-doctorcreator.png`, height 110px (alinhada à esquerda do footer)
 - Footer CTA: "SAIBA MAIS NA LEGENDA ↓" (alinhado à direita)
+
+## Regras obrigatórias de CSS (não alterar)
+
+### Gradiente (FIXO — copiar exatamente)
+
+```css
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(to top,
+    rgba(0,0,0,1.0)  0%,
+    rgba(0,0,0,0.95) 22%,
+    rgba(0,0,0,0.6)  48%,
+    rgba(0,0,0,0.15) 63%,
+    rgba(0,0,0,0.0)  70%
+  );
+}
+```
+
+Este valor é fixo e não deve ser ajustado entre runs.
+
+### Headline (NUNCA truncar)
+
+```css
+h1 {
+  font-size: 68px;
+  font-weight: 800;
+  color: #FFFFFF;
+  line-height: 1.2;
+  /* NUNCA usar max-height nem overflow: hidden — o título deve mostrar todos os caracteres */
+}
+```

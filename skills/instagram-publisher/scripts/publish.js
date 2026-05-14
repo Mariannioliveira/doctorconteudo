@@ -55,15 +55,52 @@ async function _uploadTo0x0(imagePath) {
   return url;
 }
 
+async function _uploadToLitterbox(imagePath) {
+  const absolutePath = resolve(imagePath);
+  const fileBuffer = readFileSync(absolutePath);
+  const fileName = absolutePath.split(/[\\/]/).pop();
+  const form = new FormData();
+  form.append('reqtype', 'fileupload');
+  form.append('time', '72h');
+  form.append('fileToUpload', new Blob([fileBuffer], { type: 'image/jpeg' }), fileName);
+  const res = await fetch('https://litterbox.catbox.moe/resources/internals/api.php', { method: 'POST', body: form, signal: AbortSignal.timeout(60000) });
+  if (!res.ok) throw new Error(`litterbox upload failed [${res.status}]: ${(await res.text()).slice(0, 200)}`);
+  const url = (await res.text()).trim();
+  if (!url.startsWith('http')) throw new Error(`litterbox retornou resposta inesperada: ${url.slice(0, 200)}`);
+  return url;
+}
+
+async function _uploadToUguu(imagePath) {
+  const absolutePath = resolve(imagePath);
+  const fileBuffer = readFileSync(absolutePath);
+  const fileName = absolutePath.split(/[\\/]/).pop();
+  const form = new FormData();
+  form.append('files[]', new Blob([fileBuffer], { type: 'image/jpeg' }), fileName);
+  const res = await fetch('https://uguu.se/upload', { method: 'POST', body: form, signal: AbortSignal.timeout(60000) });
+  if (!res.ok) throw new Error(`uguu.se upload failed [${res.status}]: ${(await res.text()).slice(0, 200)}`);
+  const json = await res.json();
+  const url = json?.files?.[0]?.url;
+  if (!url?.startsWith('http')) throw new Error(`uguu.se retornou resposta inesperada: ${JSON.stringify(json).slice(0, 200)}`);
+  return url;
+}
+
 export async function uploadToCatbox(imagePath) {
-  // Primário: catbox.moe (anônimo, sem auth, permanente)
-  try {
-    return await _uploadToCatbox(imagePath);
-  } catch (e) {
-    console.warn(`   ⚠️ catbox.moe falhou (${e.message}) — tentando 0x0.st...`);
+  const services = [
+    { name: 'catbox.moe', fn: _uploadToCatbox },
+    { name: 'litterbox.catbox.moe', fn: _uploadToLitterbox },
+    { name: 'uguu.se', fn: _uploadToUguu },
+    { name: '0x0.st', fn: _uploadTo0x0 },
+  ];
+  for (let i = 0; i < services.length; i++) {
+    const { name, fn } = services[i];
+    try {
+      return await fn(imagePath);
+    } catch (e) {
+      const next = services[i + 1];
+      if (next) console.warn(`   ⚠️ ${name} falhou (${e.message}) — tentando ${next.name}...`);
+      else throw new Error(`Todos os serviços de upload falharam. Último erro: ${e.message}`);
+    }
   }
-  // Fallback: 0x0.st (anônimo, sem auth, sem API key)
-  return await _uploadTo0x0(imagePath);
 }
 
 // ── Instagram Graph API ───────────────────────────────────────

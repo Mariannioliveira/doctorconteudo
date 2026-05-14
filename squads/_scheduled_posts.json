@@ -12,5 +12,19 @@
     "instagram_post_id": null,
     "instagram_url": null,
     "error": null
+  },
+  {
+    "id": "61a067f0-bebc-4fc0-bc32-444d3b799d94",
+    "squad_name": "conteudo-social-medicos",
+    "run_id": "run-20260512-124837",
+    "image_path": "/Users/marianni/Documents/Python/doctor/conteudo interno/doctorconteudo-1/squads/conteudo-social-medicos/output/run-20260512-124837/design/card.jpg",
+    "caption": "➡️ Siga @doctorcreatorwellness\n\nOs dispositivos médicos deixaram de ser equipamentos passivos — agora eles coletam, analisam e comunicam dados de saúde em tempo real.\n\nA convergência entre inteligência artificial, sensores avançados e conectividade está redefinindo o papel dos aparelhos na prática clínica. O que antes era um equipamento de uso pontual passa a funcionar como uma plataforma contínua de monitoramento e análise.\n\nNa prática, isso significa que um mesmo dispositivo pode captar sinais do paciente, processar essas informações com suporte de IA e entregar insights diretamente ao médico responsável — alterando a forma como o acompanhamento clínico é feito.\n\nPara os profissionais de saúde, entender essa transformação é cada vez mais necessário. A mudança não é incremental: ela reposiciona o dispositivo como parte ativa do raciocínio clínico, não apenas como ferramenta de execução.\n\n(Fonte: Medical Device Network via Yahoo Tech)\n```",
+    "scheduled_time": "2026-05-13T20:20:03.315042+00:00",
+    "status": "published",
+    "created_at": "2026-05-13T20:15:03.316215+00:00",
+    "published_at": "2026-05-13T20:20:23.449290+00:00",
+    "instagram_post_id": "17991420026962244",
+    "instagram_url": "https://www.instagram.com/p/DYSsJN8jxkA/",
+    "error": null
   }
 ]

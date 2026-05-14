@@ -1,8 +1,8 @@
 {
   "squad": "conteudo-social-medicos",
-  "status": "completed",
+  "status": "idle",
   "step": {
-    "current": 8,
+    "current": 7,
     "total": 9,
     "label": "Aprovação para Publicação"
   },
@@ -11,7 +11,7 @@
       "id": "instagram-scout",
       "name": "Insta Scout",
       "icon": "📸",
-      "status": "done",
+      "status": "idle",
       "deliverTo": null,
       "desk": {
         "col": 1,
@@ -22,7 +22,7 @@
       "id": "pesquisador",
       "name": "Dr. Scout",
       "icon": "🔎",
-      "status": "done",
+      "status": "idle",
       "deliverTo": null,
       "desk": {
         "col": 2,
@@ -33,7 +33,7 @@
       "id": "redator",
       "name": "Carlos Cópia",
       "icon": "✍️",
-      "status": "done",
+      "status": "idle",
       "deliverTo": null,
       "desk": {
         "col": 3,
@@ -44,7 +44,7 @@
       "id": "designer",
       "name": "Marco Design",
       "icon": "🎨",
-      "status": "done",
+      "status": "idle",
       "deliverTo": null,
       "desk": {
         "col": 1,
@@ -64,6 +64,7 @@
     }
   ],
   "handoff": null,
-  "startedAt": "2026-05-12T12:48:37.395009+00:00",
-  "updatedAt": "2026-05-12T13:01:21.130329+00:00"
+  "startedAt": "2026-05-13T22:50:09.093670+00:00",
+  "updatedAt": "2026-05-13T23:07:47.100414+00:00",
+  "error": null
 }
